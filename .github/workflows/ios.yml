@@ -1,0 +1,44 @@
+name: iOS build (unsigned IPA)
+
+# Compila l'app per iOS su un runner macOS in cloud (non serve un Mac) e produce
+# un IPA NON firmato, pronto per il sideload con AltStore/SideStore (che lo firma
+# con il tuo Apple ID al momento dell'installazione).
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.2
+
+      - name: Dipendenze
+        run: flutter pub get
+
+      - name: Build iOS (senza firma)
+        run: flutter build ios --release --no-codesign
+
+      - name: Crea IPA non firmato
+        run: |
+          cd build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -qr app-unsigned.ipa Payload
+          echo "IPA creato:" && ls -lh app-unsigned.ipa
+
+      - name: Pubblica l'IPA come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scptv-ios-unsigned-ipa
+          path: build/ios/iphoneos/app-unsigned.ipa
+          if-no-files-found: error
