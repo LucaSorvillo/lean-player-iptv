@@ -10,7 +10,7 @@ Questa guida serve a **compilare l'app per iOS senza un Mac** (build su GitHub A
 
 ## Passo 1 — Metti il codice su GitHub
 1. Su github.com crea un repository **privato** (es. `scptv_app`), senza inizializzarlo con README.
-2. Dal PC, nella cartella `C:\Users\PC\scptv_app`, collega e pubblica (sostituisci TUO-UTENTE):
+2. Dal PC, nella cartella del progetto `scptv_app`, collega e pubblica (sostituisci TUO-UTENTE):
    ```
    git remote add origin https://github.com/TUO-UTENTE/scptv_app.git
    git push -u origin main
