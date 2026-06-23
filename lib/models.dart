@@ -82,3 +82,17 @@ class XtSeries {
         categoryId: '${j['category_id'] ?? ''}',
       );
 }
+
+class XtEpisode {
+  final String id;
+  final String title;
+  final String ext;
+
+  const XtEpisode({required this.id, required this.title, required this.ext});
+
+  factory XtEpisode.fromJson(Map<String, dynamic> j) => XtEpisode(
+        id: '${j['id']}',
+        title: '${j['title'] ?? 'Episodio'}',
+        ext: '${j['container_extension'] ?? 'mp4'}',
+      );
+}

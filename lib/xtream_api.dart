@@ -106,6 +106,27 @@ class XtreamApi {
     return [];
   }
 
+  /// Episodi di una serie (get_series_info → mappa stagione→episodi, appiattita).
+  Future<List<XtEpisode>> seriesInfo(String seriesId) async {
+    final data = await _getJson(_api({
+      'action': 'get_series_info',
+      'series_id': seriesId,
+    }));
+    final out = <XtEpisode>[];
+    if (data is Map && data['episodes'] is Map) {
+      for (final season in (data['episodes'] as Map).values) {
+        if (season is List) {
+          for (final e in season) {
+            if (e is Map) {
+              out.add(XtEpisode.fromJson(e.cast<String, dynamic>()));
+            }
+          }
+        }
+      }
+    }
+    return out;
+  }
+
   // --- URL di streaming (primo hop; il server fa redirect 302 + token) ---
   String liveUrl(String streamId) =>
       '$_base/live/$username/$password/$streamId.ts';
