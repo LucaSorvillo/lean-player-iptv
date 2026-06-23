@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import 'config.dart';
 
-/// Schermata di riproduzione: dato un URL (live / film / episodio) riproduce
-/// con libVLC forzando lo User-Agent richiesto dal server SCPTV.
+/// Schermata di riproduzione: dato un URL (live / film / episodio) riproduce con
+/// media_kit (libmpv) forzando lo User-Agent richiesto dal server SCPTV.
 class PlayerScreen extends StatefulWidget {
   final String url;
   final String title;
@@ -16,27 +17,20 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late final VlcPlayerController _controller;
+  late final Player _player = Player();
+  late final VideoController _controller = VideoController(_player);
 
   @override
   void initState() {
     super.initState();
-    _controller = VlcPlayerController.network(
-      widget.url,
-      hwAcc: HwAcc.full,
-      autoPlay: true,
-      options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([
-          VlcAdvancedOptions.networkCaching(3000),
-        ]),
-        extras: [':http-user-agent=${ScptvConfig.userAgent}'],
-      ),
+    _player.open(
+      Media(widget.url, httpHeaders: const {'User-Agent': ScptvConfig.userAgent}),
     );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -45,13 +39,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(title: Text(widget.title)),
-      body: Center(
-        child: VlcPlayer(
-          controller: _controller,
-          aspectRatio: 16 / 9,
-          placeholder: const Center(child: CircularProgressIndicator()),
-        ),
-      ),
+      body: Center(child: Video(controller: _controller)),
     );
   }
 }
