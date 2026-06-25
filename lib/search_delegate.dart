@@ -14,9 +14,10 @@ class _Catalog {
   const _Catalog(this.live, this.vod, this.series);
 }
 
-/// Normalizza il testo per la ricerca: minuscolo, senza apostrofi/virgolette e
-/// con accenti "appiattiti". Così varianti tipografiche e accenti non impediscono
-/// il match (es. "l'eternau" trova "L'eternauta", con apostrofo U+2019).
+/// Normalizza il testo per la ricerca: minuscolo, accenti "appiattiti" e
+/// rimozione di **tutti** i caratteri non alfanumerici (apostrofi, spazi,
+/// trattini, punti, ...). Così "l'eternau", "l eternau" e "leternau" trovano
+/// tutti "L'eternauta" (apostrofo tipografico, spazio o niente).
 String _normalizeSearch(String s) {
   const accents = {
     'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
@@ -26,13 +27,13 @@ String _normalizeSearch(String s) {
     'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
     'ñ': 'n', 'ç': 'c', 'ý': 'y', 'ÿ': 'y',
   };
-  const apostrophes = "'‘’ʼ`´";
   final sb = StringBuffer();
-  for (final ch in s.trim().toLowerCase().split('')) {
-    if (apostrophes.contains(ch)) continue;
+  for (final ch in s.toLowerCase().split('')) {
     sb.write(accents[ch] ?? ch);
   }
-  return sb.toString();
+  // Rimuove tutto ciò che non è lettera o numero (apostrofi, spazi, trattini,
+  // punti, &, ...): così i separatori non impediscono mai il match.
+  return sb.toString().replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '');
 }
 
 /// Ricerca globale: filtra per nome canali + film + serie insieme, risultati
