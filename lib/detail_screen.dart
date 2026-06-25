@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'models.dart';
 import 'player_screen.dart';
 import 'services/catalog_repository.dart';
+import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
 
@@ -35,11 +36,41 @@ class _DetailScreenState extends State<DetailScreen> {
       ? Future.value(XtSeriesInfo.empty)
       : _repo.source.seriesInfo(widget.series!.seriesId);
 
-  void _play(String url, String title) {
+  void _play(String url, String title,
+      {ContinueRef? resume, Duration initialPosition = Duration.zero}) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: title)),
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          url: url,
+          title: title,
+          resume: resume,
+          initialPosition: initialPosition,
+        ),
+      ),
     );
   }
+
+  // Posizione salvata per riprendere (film).
+  int _moviePos() =>
+      ContinueWatchingStore.instance.find('vod', widget.movie!.streamId)?.position ??
+      0;
+
+  // Posizione salvata per un episodio, se è proprio quello in corso della serie.
+  int _episodePos(XtEpisode e) {
+    final saved =
+        ContinueWatchingStore.instance.find('series', widget.series!.seriesId);
+    if (saved?.episode != null && '${saved!.episode!['id']}' == e.id) {
+      return saved.position;
+    }
+    return 0;
+  }
+
+  void _playEpisode(XtEpisode e) => _play(
+        _repo.episodeUrl(e),
+        e.title,
+        resume: ContinueRef.series(widget.series!, e),
+        initialPosition: Duration(seconds: _episodePos(e)),
+      );
 
   Widget _favStar() => _isMovie
       ? FavStar(
@@ -143,7 +174,14 @@ class _DetailScreenState extends State<DetailScreen> {
 
   List<Widget> _movieBody() {
     return [
-      _actions(onPlay: () => _play(_repo.vodUrl(widget.movie!), _title)),
+      _actions(
+        onPlay: () => _play(
+          _repo.vodUrl(widget.movie!),
+          _title,
+          resume: ContinueRef.vod(widget.movie!),
+          initialPosition: Duration(seconds: _moviePos()),
+        ),
+      ),
       FutureBuilder<XtVodInfo>(
         future: _movieInfo,
         builder: (context, snap) {
@@ -186,9 +224,7 @@ class _DetailScreenState extends State<DetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _actions(
-                onPlay: eps.isEmpty
-                    ? null
-                    : () => _play(_repo.episodeUrl(eps.first), eps.first.title),
+                onPlay: eps.isEmpty ? null : () => _playEpisode(eps.first),
               ),
               _plotAndMeta(info.plot, const []),
               if (eps.isEmpty)
@@ -206,7 +242,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 ...eps.map((e) => ListTile(
                       leading: const Icon(Icons.play_circle_outline),
                       title: Text(e.title),
-                      onTap: () => _play(_repo.episodeUrl(e), e.title),
+                      onTap: () => _playEpisode(e),
                     )),
               ],
             ],

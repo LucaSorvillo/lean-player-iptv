@@ -4,6 +4,7 @@ import 'detail_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
 import 'services/catalog_repository.dart';
+import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
 import 'widgets/poster_card.dart';
@@ -76,6 +77,7 @@ class FavoritesScreen extends StatelessWidget {
                 url: _repo.liveUrl(c),
                 title: c.name,
                 liveStreamId: _repo.supportsEpg ? c.streamId : null,
+                resume: ContinueRef.live(c),
               ),
             ),
           )),

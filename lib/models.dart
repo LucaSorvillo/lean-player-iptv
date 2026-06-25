@@ -132,6 +132,12 @@ class XtEpisode {
         title: '${j['title'] ?? 'Episodio'}',
         ext: '${j['container_extension'] ?? 'mp4'}',
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'container_extension': ext,
+      };
 }
 
 /// Dettagli di un film (da `get_vod_info` → `info`).

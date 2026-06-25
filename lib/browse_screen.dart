@@ -33,6 +33,9 @@ class BrowseScreen<T> extends StatefulWidget {
   final Widget Function(T) favStar;
   final String emptyMsg;
 
+  /// Riga opzionale inserita subito dopo l'hero (es. "Continua a guardare").
+  final Widget? leadingRow;
+
   const BrowseScreen({
     super.key,
     required this.categories,
@@ -45,6 +48,7 @@ class BrowseScreen<T> extends StatefulWidget {
     required this.onHeroPlay,
     required this.favStar,
     required this.emptyMsg,
+    this.leadingRow,
   });
 
   @override
@@ -95,6 +99,7 @@ class _BrowseScreenState<T> extends State<BrowseScreen<T>> {
             onRefresh: _refresh,
             child: ListView(
               children: [
+                if (widget.leadingRow != null) widget.leadingRow!,
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Center(child: Text(widget.emptyMsg)),
@@ -103,11 +108,13 @@ class _BrowseScreenState<T> extends State<BrowseScreen<T>> {
             ),
           );
         }
+        final hasLead = widget.leadingRow != null;
+        final rowOffset = hasLead ? 2 : 1;
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView.builder(
             padding: EdgeInsets.zero,
-            itemCount: 1 + data.rows.length,
+            itemCount: rowOffset + data.rows.length,
             itemBuilder: (context, i) {
               if (i == 0) {
                 final f = data.featured;
@@ -120,7 +127,8 @@ class _BrowseScreenState<T> extends State<BrowseScreen<T>> {
                   myListButton: widget.favStar(f),
                 );
               }
-              final row = data.rows[i - 1];
+              if (hasLead && i == 1) return widget.leadingRow!;
+              final row = data.rows[i - rowOffset];
               return ContentRow(
                 title: row.title,
                 itemCount: row.items.length,

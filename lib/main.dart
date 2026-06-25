@@ -4,6 +4,7 @@ import 'package:media_kit/media_kit.dart';
 import 'config.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
 import 'services/settings_store.dart';
 import 'theme.dart';
@@ -13,6 +14,7 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
   await SettingsStore.instance.load();
   await FavoritesStore.instance.load();
+  await ContinueWatchingStore.instance.load();
   runApp(const ScptvApp());
 }
 

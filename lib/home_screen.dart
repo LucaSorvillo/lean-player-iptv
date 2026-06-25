@@ -8,8 +8,10 @@ import 'models.dart';
 import 'player_screen.dart';
 import 'search_delegate.dart';
 import 'services/catalog_repository.dart';
+import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
+import 'widgets/continue_row.dart';
 
 /// Shell principale: schede Live / Film / (Serie) / Preferiti + ricerca e
 /// impostazioni. Film e Serie usano la vista "Sfoglia" (hero + caroselli).
@@ -81,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
         loadCategories: _repo.liveCategories,
         categoryIdOf: (c) => c.categoryId,
         emptyMsg: 'Nessun canale',
+        header: const ContinueWatchingRow(type: 'live'),
         tileBuilder: (context, c) => LiveTile(
           channel: c,
           showEpg: _repo.supportsEpg,
@@ -97,9 +100,10 @@ class _HomeScreenState extends State<HomeScreen> {
         nameOf: (v) => v.name,
         fallback: Icons.movie,
         emptyMsg: 'Nessun film',
+        leadingRow: const ContinueWatchingRow(type: 'vod'),
         onOpen: (ctx, v) => Navigator.of(ctx).push(
             MaterialPageRoute(builder: (_) => DetailScreen.movie(v))),
-        onHeroPlay: (ctx, v) => _openPlayer(ctx, _repo.vodUrl(v), v.name),
+        onHeroPlay: _openMovie,
         favStar: (v) => FavStar(
           isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
           onToggle: () => FavoritesStore.instance.toggleVod(v),
@@ -115,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
         nameOf: (s) => s.name,
         fallback: Icons.video_library,
         emptyMsg: 'Nessuna serie',
+        leadingRow: const ContinueWatchingRow(type: 'series'),
         onOpen: (ctx, s) => Navigator.of(ctx).push(
             MaterialPageRoute(builder: (_) => DetailScreen.series(s))),
         onHeroPlay: (ctx, s) => Navigator.of(ctx).push(
@@ -131,14 +136,21 @@ class _HomeScreenState extends State<HomeScreen> {
         url: _repo.liveUrl(c),
         title: c.name,
         liveStreamId: _repo.supportsEpg ? c.streamId : null,
+        resume: ContinueRef.live(c),
       ),
     ));
   }
 
-  void _openPlayer(BuildContext context, String url, String title) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: title)),
-    );
+  void _openMovie(BuildContext context, XtVod v) {
+    final saved = ContinueWatchingStore.instance.find('vod', v.streamId);
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PlayerScreen(
+        url: _repo.vodUrl(v),
+        title: v.name,
+        resume: ContinueRef.vod(v),
+        initialPosition: Duration(seconds: saved?.position ?? 0),
+      ),
+    ));
   }
 }
 
@@ -149,6 +161,7 @@ class _CatalogTab<T> extends StatefulWidget {
   final String Function(T) categoryIdOf;
   final Widget Function(BuildContext, T) tileBuilder;
   final String emptyMsg;
+  final Widget? header;
 
   const _CatalogTab({
     super.key,
@@ -157,6 +170,7 @@ class _CatalogTab<T> extends StatefulWidget {
     required this.categoryIdOf,
     required this.tileBuilder,
     required this.emptyMsg,
+    this.header,
   });
 
   @override
@@ -222,6 +236,7 @@ class _CatalogTabState<T> extends State<_CatalogTab<T>> {
                 if (list.isEmpty) {
                   return ListView(
                     children: [
+                      if (widget.header != null) widget.header!,
                       Padding(
                         padding: const EdgeInsets.all(32),
                         child: Center(child: Text(widget.emptyMsg)),
@@ -229,10 +244,14 @@ class _CatalogTabState<T> extends State<_CatalogTab<T>> {
                     ],
                   );
                 }
+                final hasHeader = widget.header != null;
+                final offset = hasHeader ? 1 : 0;
                 return ListView.builder(
-                  itemCount: list.length,
-                  itemBuilder: (context, i) =>
-                      widget.tileBuilder(context, list[i]),
+                  itemCount: offset + list.length,
+                  itemBuilder: (context, i) {
+                    if (hasHeader && i == 0) return widget.header!;
+                    return widget.tileBuilder(context, list[i - offset]);
+                  },
                 );
               },
             ),
