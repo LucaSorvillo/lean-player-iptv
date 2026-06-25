@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 import 'player_screen.dart';
+import 'services/favorites_store.dart';
+import 'widgets/common.dart';
 import 'xtream_api.dart';
 
 /// Dettaglio di una serie: elenco episodi (tutte le stagioni) → player.
@@ -16,13 +18,26 @@ class SeriesDetailScreen extends StatefulWidget {
 }
 
 class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
-  late final Future<List<XtEpisode>> _future =
+  late Future<List<XtEpisode>> _future =
       widget.api.seriesInfo(widget.series.seriesId);
+
+  void _retry() => setState(
+      () => _future = widget.api.seriesInfo(widget.series.seriesId));
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.series.name)),
+      appBar: AppBar(
+        title: Text(widget.series.name),
+        actions: [
+          FavStar(
+            isFav: () =>
+                FavoritesStore.instance.isSeriesFav(widget.series.seriesId),
+            onToggle: () =>
+                FavoritesStore.instance.toggleSeries(widget.series),
+          ),
+        ],
+      ),
       body: FutureBuilder<List<XtEpisode>>(
         future: _future,
         builder: (context, snap) {
@@ -30,7 +45,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            return Center(child: Text('Errore: ${snap.error}'));
+            return ErrorRetry(message: '${snap.error}', onRetry: _retry);
           }
           final list = snap.data ?? const [];
           if (list.isEmpty) {

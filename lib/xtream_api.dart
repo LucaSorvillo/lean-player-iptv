@@ -1,9 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import 'config.dart';
 import 'models.dart';
+
+/// Errore "parlante" delle chiamate API: il messaggio è già pronto per l'utente.
+class ApiException implements Exception {
+  final String message;
+  ApiException(this.message);
+  @override
+  String toString() => message;
+}
 
 /// Client per l'API Xtream Codes del server SCPTV.
 ///
@@ -34,11 +43,25 @@ class XtreamApi {
       });
 
   Future<dynamic> _getJson(Uri uri) async {
-    final res = await http.get(uri, headers: _headers);
-    if (res.statusCode != 200) {
-      throw Exception('HTTP ${res.statusCode} su $uri');
+    http.Response res;
+    try {
+      res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      throw ApiException('Il server non risponde. Controlla la connessione.');
+    } catch (_) {
+      throw ApiException(
+          'Impossibile contattare il server. Controlla la connessione.');
     }
-    return jsonDecode(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException('Errore del server (HTTP ${res.statusCode}).');
+    }
+    try {
+      return jsonDecode(res.body);
+    } catch (_) {
+      throw ApiException('Risposta non valida dal server.');
+    }
   }
 
   /// Login / info account: ritorna `user_info` (auth, status, exp_date, ...).
@@ -125,6 +148,33 @@ class XtreamApi {
       }
     }
     return out;
+  }
+
+  /// Palinsesto di un canale live. Prova `get_short_epg` (leggero: ora + a
+  /// seguire); se vuoto/non supportato ricade su `get_simple_data_table`
+  /// (l'endpoint usato dall'app ufficiale). Lista ordinata per orario.
+  Future<List<XtEpg>> shortEpg(String streamId, {int limit = 2}) async {
+    for (final action in const ['get_short_epg', 'get_simple_data_table']) {
+      final params = {'action': action, 'stream_id': streamId};
+      if (action == 'get_short_epg') params['limit'] = '$limit';
+      dynamic data;
+      try {
+        data = await _getJson(_api(params));
+      } catch (_) {
+        continue; // prova il fallback
+      }
+      final listings = (data is Map) ? data['epg_listings'] : null;
+      if (listings is List && listings.isNotEmpty) {
+        final out = listings
+            .whereType<Map>()
+            .map((e) => XtEpg.fromJson(e.cast<String, dynamic>()))
+            .toList()
+          ..sort((a, b) =>
+              (a.start ?? DateTime(1970)).compareTo(b.start ?? DateTime(1970)));
+        if (out.isNotEmpty) return out;
+      }
+    }
+    return [];
   }
 
   // --- URL di streaming (primo hop; il server fa redirect 302 + token) ---

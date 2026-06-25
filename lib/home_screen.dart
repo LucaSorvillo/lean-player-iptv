@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
+import 'favorites_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
+import 'search_delegate.dart';
 import 'series_detail_screen.dart';
-import 'xtream_api.dart';
+import 'services/catalog_repository.dart';
+import 'services/favorites_store.dart';
+import 'widgets/channel_epg_sheet.dart';
+import 'widgets/common.dart';
 
-/// Shell principale dell'app: tre tab (Live / Film / Serie).
+/// Shell principale: quattro schede (Live / Film / Serie / Preferiti) + ricerca.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,20 +19,36 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final XtreamApi _api = XtreamApi();
+  final CatalogRepository _repo = CatalogRepository.instance;
   int _index = 0;
 
   @override
   Widget build(BuildContext context) {
-    const titles = ['SCPTV — Live', 'SCPTV — Film', 'SCPTV — Serie'];
+    const titles = [
+      'SCPTV — Live',
+      'SCPTV — Film',
+      'SCPTV — Serie',
+      'SCPTV — Preferiti',
+    ];
     return Scaffold(
-      appBar: AppBar(title: Text(titles[_index])),
+      appBar: AppBar(
+        title: Text(titles[_index]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Cerca',
+            onPressed: () =>
+                showSearch(context: context, delegate: GlobalSearchDelegate()),
+          ),
+        ],
+      ),
       body: IndexedStack(
         index: _index,
         children: [
-          _LiveTab(api: _api),
-          _VodTab(api: _api),
-          _SeriesTab(api: _api),
+          _liveTab(),
+          _vodTab(),
+          _seriesTab(),
+          FavoritesScreen(api: _repo.api),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -37,146 +58,172 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.live_tv), label: 'Live'),
           NavigationDestination(icon: Icon(Icons.movie), label: 'Film'),
           NavigationDestination(icon: Icon(Icons.video_library), label: 'Serie'),
+          NavigationDestination(icon: Icon(Icons.star), label: 'Preferiti'),
         ],
       ),
     );
   }
-}
 
-void _openPlayer(BuildContext context, String url, String title) {
-  Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: title)),
-  );
-}
+  Widget _liveTab() => _CatalogTab<XtLive>(
+        loadItems: _repo.live,
+        loadCategories: _repo.liveCategories,
+        categoryIdOf: (c) => c.categoryId,
+        emptyMsg: 'Nessun canale',
+        tileBuilder: (context, c) => LiveTile(
+          channel: c,
+          onPlay: () =>
+              _openPlayer(context, _repo.api.liveUrl(c.streamId), c.name),
+          onInfo: () => showChannelEpg(
+            context,
+            c,
+            () => _openPlayer(context, _repo.api.liveUrl(c.streamId), c.name),
+          ),
+        ),
+      );
 
-Widget _stateWrapper<T>(
-  AsyncSnapshot<List<T>> snap,
-  String emptyMsg,
-  Widget Function(List<T>) onData,
-) {
-  if (snap.connectionState != ConnectionState.done) {
-    return const Center(child: CircularProgressIndicator());
-  }
-  if (snap.hasError) return Center(child: Text('Errore: ${snap.error}'));
-  final list = snap.data ?? const [];
-  if (list.isEmpty) return Center(child: Text(emptyMsg));
-  return onData(list);
-}
+  Widget _vodTab() => _CatalogTab<XtVod>(
+        loadItems: _repo.vod,
+        loadCategories: _repo.vodCategories,
+        categoryIdOf: (v) => v.categoryId,
+        emptyMsg: 'Nessun film',
+        tileBuilder: (context, v) => ListTile(
+          leading: StreamLogo(
+              url: v.icon, fallback: Icons.movie, width: 40, height: 56),
+          title: Text(v.name),
+          trailing: FavStar(
+            isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
+            onToggle: () => FavoritesStore.instance.toggleVod(v),
+          ),
+          onTap: () =>
+              _openPlayer(context, _repo.api.vodUrl(v.streamId, v.ext), v.name),
+        ),
+      );
 
-// --- Tab Live ---
-class _LiveTab extends StatefulWidget {
-  final XtreamApi api;
-  const _LiveTab({required this.api});
-  @override
-  State<_LiveTab> createState() => _LiveTabState();
-}
+  Widget _seriesTab() => _CatalogTab<XtSeries>(
+        loadItems: _repo.series,
+        loadCategories: _repo.seriesCategories,
+        categoryIdOf: (s) => s.categoryId,
+        emptyMsg: 'Nessuna serie',
+        tileBuilder: (context, s) => ListTile(
+          leading: StreamLogo(
+              url: s.cover, fallback: Icons.video_library, width: 40, height: 56),
+          title: Text(s.name),
+          trailing: FavStar(
+            isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
+            onToggle: () => FavoritesStore.instance.toggleSeries(s),
+          ),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => SeriesDetailScreen(api: _repo.api, series: s),
+          )),
+        ),
+      );
 
-class _LiveTabState extends State<_LiveTab> {
-  late final Future<List<XtLive>> _future = widget.api.liveStreams();
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<XtLive>>(
-      future: _future,
-      builder: (context, snap) => _stateWrapper(snap, 'Nessun canale', (list) {
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (context, i) {
-            final ch = list[i];
-            return ListTile(
-              leading: ch.icon.isNotEmpty
-                  ? Image.network(ch.icon,
-                      width: 48,
-                      height: 48,
-                      errorBuilder: (_, _, _) => const Icon(Icons.live_tv))
-                  : const Icon(Icons.live_tv),
-              title: Text(ch.name),
-              onTap: () =>
-                  _openPlayer(context, widget.api.liveUrl(ch.streamId), ch.name),
-            );
-          },
-        );
-      }),
+  void _openPlayer(BuildContext context, String url, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: title)),
     );
   }
 }
 
-// --- Tab Film (VOD) ---
-class _VodTab extends StatefulWidget {
-  final XtreamApi api;
-  const _VodTab({required this.api});
+/// Scheda generica di catalogo: header categoria + pull-to-refresh + lista
+/// filtrata client-side per categoria. Riusata da Live / Film / Serie.
+class _CatalogTab<T> extends StatefulWidget {
+  final Future<List<T>> Function() loadItems;
+  final Future<List<XtCategory>> Function() loadCategories;
+  final String Function(T) categoryIdOf;
+  final Widget Function(BuildContext, T) tileBuilder;
+  final String emptyMsg;
+
+  const _CatalogTab({
+    super.key,
+    required this.loadItems,
+    required this.loadCategories,
+    required this.categoryIdOf,
+    required this.tileBuilder,
+    required this.emptyMsg,
+  });
+
   @override
-  State<_VodTab> createState() => _VodTabState();
+  State<_CatalogTab<T>> createState() => _CatalogTabState<T>();
 }
 
-class _VodTabState extends State<_VodTab> {
-  late final Future<List<XtVod>> _future = widget.api.vodStreams();
+class _CatalogTabState<T> extends State<_CatalogTab<T>> {
+  late Future<List<T>> _items = widget.loadItems();
+  late Future<List<XtCategory>> _cats = widget.loadCategories();
+  String? _selectedCat;
 
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<XtVod>>(
-      future: _future,
-      builder: (context, snap) => _stateWrapper(snap, 'Nessun film', (list) {
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (context, i) {
-            final v = list[i];
-            return ListTile(
-              leading: v.icon.isNotEmpty
-                  ? Image.network(v.icon,
-                      width: 40,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Icon(Icons.movie))
-                  : const Icon(Icons.movie),
-              title: Text(v.name),
-              onTap: () => _openPlayer(
-                  context, widget.api.vodUrl(v.streamId, v.ext), v.name),
-            );
-          },
-        );
-      }),
-    );
+  Future<void> _refresh() async {
+    CatalogRepository.instance.refresh();
+    setState(() {
+      _items = widget.loadItems();
+      _cats = widget.loadCategories();
+      _selectedCat = null;
+    });
+    // attende il completamento per tenere lo spinner del RefreshIndicator
+    await _items.catchError((_) => <T>[]);
   }
-}
 
-// --- Tab Serie ---
-class _SeriesTab extends StatefulWidget {
-  final XtreamApi api;
-  const _SeriesTab({required this.api});
-  @override
-  State<_SeriesTab> createState() => _SeriesTabState();
-}
-
-class _SeriesTabState extends State<_SeriesTab> {
-  late final Future<List<XtSeries>> _future = widget.api.seriesList();
+  void _retry() {
+    setState(() {
+      _items = widget.loadItems();
+      _cats = widget.loadCategories();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<XtSeries>>(
-      future: _future,
-      builder: (context, snap) => _stateWrapper(snap, 'Nessuna serie', (list) {
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (context, i) {
-            final s = list[i];
-            return ListTile(
-              leading: s.cover.isNotEmpty
-                  ? Image.network(s.cover,
-                      width: 40,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          const Icon(Icons.video_library))
-                  : const Icon(Icons.video_library),
-              title: Text(s.name),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => SeriesDetailScreen(api: widget.api, series: s),
-              )),
+    return Column(
+      children: [
+        FutureBuilder<List<XtCategory>>(
+          future: _cats,
+          builder: (context, snap) {
+            final cats = snap.data ?? const <XtCategory>[];
+            if (cats.isEmpty) return const SizedBox.shrink();
+            return CategoryDropdown(
+              categories: cats,
+              value: _selectedCat,
+              onChanged: (v) => setState(() => _selectedCat = v),
             );
           },
-        );
-      }),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: FutureBuilder<List<T>>(
+              future: _items,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return ErrorRetry(message: '${snap.error}', onRetry: _retry);
+                }
+                final all = snap.data ?? const [];
+                final list = _selectedCat == null
+                    ? all
+                    : all
+                        .where((e) => widget.categoryIdOf(e) == _selectedCat)
+                        .toList();
+                if (list.isEmpty) {
+                  return ListView(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(child: Text(widget.emptyMsg)),
+                      ),
+                    ],
+                  );
+                }
+                return ListView.builder(
+                  itemCount: list.length,
+                  itemBuilder: (context, i) =>
+                      widget.tileBuilder(context, list[i]),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
