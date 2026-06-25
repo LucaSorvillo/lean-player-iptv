@@ -14,6 +14,27 @@ class _Catalog {
   const _Catalog(this.live, this.vod, this.series);
 }
 
+/// Normalizza il testo per la ricerca: minuscolo, senza apostrofi/virgolette e
+/// con accenti "appiattiti". Così varianti tipografiche e accenti non impediscono
+/// il match (es. "l'eternau" trova "L'eternauta", con apostrofo U+2019).
+String _normalizeSearch(String s) {
+  const accents = {
+    'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
+    'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+    'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
+    'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+    'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ñ': 'n', 'ç': 'c', 'ý': 'y', 'ÿ': 'y',
+  };
+  const apostrophes = "'‘’ʼ`´";
+  final sb = StringBuffer();
+  for (final ch in s.trim().toLowerCase().split('')) {
+    if (apostrophes.contains(ch)) continue;
+    sb.write(accents[ch] ?? ch);
+  }
+  return sb.toString();
+}
+
 /// Ricerca globale: filtra per nome canali + film + serie insieme, risultati
 /// raggruppati per tipo. I dati arrivano dalla cache di [CatalogRepository].
 class GlobalSearchDelegate extends SearchDelegate<void> {
@@ -58,7 +79,7 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
   Widget buildResults(BuildContext context) => _results(context);
 
   Widget _results(BuildContext context) {
-    final q = query.trim().toLowerCase();
+    final q = _normalizeSearch(query);
     if (q.isEmpty) {
       return const Center(
         child: Padding(
@@ -85,7 +106,7 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
           );
         }
         final cat = snap.data!;
-        bool match(String name) => name.toLowerCase().contains(q);
+        bool match(String name) => _normalizeSearch(name).contains(q);
         final live = cat.live.where((e) => match(e.name)).toList();
         final vod = cat.vod.where((e) => match(e.name)).toList();
         final series = cat.series.where((e) => match(e.name)).toList();
