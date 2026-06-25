@@ -7,7 +7,6 @@ import 'search_delegate.dart';
 import 'series_detail_screen.dart';
 import 'services/catalog_repository.dart';
 import 'services/favorites_store.dart';
-import 'widgets/channel_epg_sheet.dart';
 import 'widgets/common.dart';
 
 /// Shell principale: quattro schede (Live / Film / Serie / Preferiti) + ricerca.
@@ -71,12 +70,11 @@ class _HomeScreenState extends State<HomeScreen> {
         emptyMsg: 'Nessun canale',
         tileBuilder: (context, c) => LiveTile(
           channel: c,
-          onPlay: () =>
-              _openPlayer(context, _repo.api.liveUrl(c.streamId), c.name),
-          onInfo: () => showChannelEpg(
+          onPlay: () => _openPlayer(
             context,
-            c,
-            () => _openPlayer(context, _repo.api.liveUrl(c.streamId), c.name),
+            _repo.api.liveUrl(c.streamId),
+            c.name,
+            liveStreamId: c.streamId,
           ),
         ),
       );
@@ -118,9 +116,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  void _openPlayer(BuildContext context, String url, String title) {
+  void _openPlayer(BuildContext context, String url, String title,
+      {String? liveStreamId}) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: title)),
+      MaterialPageRoute(
+        builder: (_) =>
+            PlayerScreen(url: url, title: title, liveStreamId: liveStreamId),
+      ),
     );
   }
 }

@@ -133,12 +133,10 @@ class StreamLogo extends StatelessWidget {
 class LiveTile extends StatefulWidget {
   final XtLive channel;
   final VoidCallback onPlay;
-  final VoidCallback onInfo;
   const LiveTile({
     super.key,
     required this.channel,
     required this.onPlay,
-    required this.onInfo,
   });
 
   @override
@@ -182,20 +180,10 @@ class _LiveTileState extends State<LiveTile> {
           );
         },
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FavStar(
-            isFav: () =>
-                FavoritesStore.instance.isLiveFav(widget.channel.streamId),
-            onToggle: () => FavoritesStore.instance.toggleLive(widget.channel),
-          ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Guida programmi',
-            onPressed: widget.onInfo,
-          ),
-        ],
+      trailing: FavStar(
+        isFav: () =>
+            FavoritesStore.instance.isLiveFav(widget.channel.streamId),
+        onToggle: () => FavoritesStore.instance.toggleLive(widget.channel),
       ),
       onTap: widget.onPlay,
     );

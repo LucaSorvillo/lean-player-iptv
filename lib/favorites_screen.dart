@@ -73,7 +73,13 @@ class FavoritesScreen extends StatelessWidget {
           onToggle: () => FavoritesStore.instance.toggleLive(c),
         ),
         onTap: () => _push(
-            context, PlayerScreen(url: api.liveUrl(c.streamId), title: c.name)),
+          context,
+          PlayerScreen(
+            url: api.liveUrl(c.streamId),
+            title: c.name,
+            liveStreamId: c.streamId,
+          ),
+        ),
       );
 
   Widget _vodTile(BuildContext context, XtVod v) => ListTile(

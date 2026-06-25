@@ -31,7 +31,7 @@ class EpgService {
         DateTime.now().difference(at) < _ttl) {
       return Future.value(_cache[streamId]!);
     }
-    return _inflight[streamId] ??= _api.shortEpg(streamId).then((list) {
+    return _inflight[streamId] ??= _api.shortEpg(streamId, limit: 12).then((list) {
       _cache[streamId] = list;
       _fetchedAt[streamId] = DateTime.now();
       _inflight.remove(streamId);
@@ -41,6 +41,9 @@ class EpgService {
       throw e;
     });
   }
+
+  /// Lista (in cache) dei programmi del canale: il corrente + i successivi.
+  Future<List<XtEpg>> listing(String streamId) => _listing(streamId);
 
   /// "Ora in onda" + "a seguire" per un canale (lista vuota → entrambi null).
   Future<EpgNowNext> nowNext(String streamId) async {

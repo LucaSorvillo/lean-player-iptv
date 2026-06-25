@@ -141,7 +141,13 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
           onToggle: () => FavoritesStore.instance.toggleLive(c),
         ),
         onTap: () => _push(
-            context, PlayerScreen(url: _repo.api.liveUrl(c.streamId), title: c.name)),
+          context,
+          PlayerScreen(
+            url: _repo.api.liveUrl(c.streamId),
+            title: c.name,
+            liveStreamId: c.streamId,
+          ),
+        ),
       );
 
   Widget _vodTile(BuildContext context, XtVod v) => ListTile(
