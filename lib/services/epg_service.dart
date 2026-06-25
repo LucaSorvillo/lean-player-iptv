@@ -18,7 +18,6 @@ class EpgService {
   EpgService._();
   static final EpgService instance = EpgService._();
 
-  final _api = CatalogRepository.instance.api;
   final Map<String, List<XtEpg>> _cache = {};
   final Map<String, DateTime> _fetchedAt = {};
   final Map<String, Future<List<XtEpg>>> _inflight = {};
@@ -31,7 +30,8 @@ class EpgService {
         DateTime.now().difference(at) < _ttl) {
       return Future.value(_cache[streamId]!);
     }
-    return _inflight[streamId] ??= _api.shortEpg(streamId, limit: 12).then((list) {
+    return _inflight[streamId] ??=
+        CatalogRepository.instance.shortEpg(streamId, limit: 12).then((list) {
       _cache[streamId] = list;
       _fetchedAt[streamId] = DateTime.now();
       _inflight.remove(streamId);
@@ -44,6 +44,13 @@ class EpgService {
 
   /// Lista (in cache) dei programmi del canale: il corrente + i successivi.
   Future<List<XtEpg>> listing(String streamId) => _listing(streamId);
+
+  /// Svuota la cache EPG (es. dopo un cambio di sorgente/impostazioni).
+  void clear() {
+    _cache.clear();
+    _fetchedAt.clear();
+    _inflight.clear();
+  }
 
   /// "Ora in onda" + "a seguire" per un canale (lista vuota → entrambi null).
   Future<EpgNowNext> nowNext(String streamId) async {

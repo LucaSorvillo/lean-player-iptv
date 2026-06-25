@@ -1,22 +1,28 @@
-/// Configurazione del servizio SCPTV.
+/// Configurazione di default dell'app IPTV (valori iniziali e preset).
+///
+/// Server e credenziali non sono più cablati qui: si impostano dall'app e si
+/// salvano in `SettingsStore`. Qui restano solo i default/preset.
 class ScptvConfig {
   ScptvConfig._();
 
-  /// User-Agent richiesto dal server per lo streaming (vincolo anti-restream).
-  static const String userAgent = 'SCPTVPlayer';
+  /// Nome mostrato dell'app.
+  static const String appName = 'IPTV Player';
 
-  /// Server reale (Xtream Codes). Ricavabile anche dal bootstrap "getappdns".
-  static const String defaultHost = 'android.cdnscp.com';
-  static const int defaultPort = 8880;
+  /// User-Agent di default (modificabile nelle impostazioni).
+  /// `SCPTVPlayer` è quello richiesto dal server SCPTV.
+  static const String defaultUserAgent = 'SCPTVPlayer';
 
-  /// Credenziali precompilate (modificabili dall'utente in app).
-  static const String defaultUsername = 'narvalo117';
-  static const String defaultPassword = '24012026';
+  /// Preset rapidi di User-Agent offerti nella schermata impostazioni.
+  static const List<String> userAgentPresets = [
+    'SCPTVPlayer',
+    'VLC/3.0.20 LibVLC/3.0.20',
+    'Lavf/60.16.100',
+    'okhttp/4.9.3',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+  ];
 
-  // --- Bootstrap "getappdns" (centralino) per ricavare dinamicamente il server ---
-  static const String bootstrapUrl = 'https://sbpscp.scpnew.com/api';
-  static const String bootstrapKeyA = 'U0riAqGRWbCHLjV'; // F0
-  static const String bootstrapKeyS =
-      '5QtPk9MhZlnrHGAocXgjmsaJODdFI81xBNLEpy7iTRSWwv0KCe'; // G0
-  static const String bootstrapSalt = r'*Njh0&$@HAH828283636JSJSHS*';
+  // --- Esempio SCPTV (solo riferimento, non usato a runtime) ---
+  static const String exampleServerUrl = 'http://android.cdnscp.com:8880';
+  static const String exampleUsername = 'narvalo117';
+  static const String examplePassword = '24012026';
 }

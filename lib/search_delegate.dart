@@ -143,9 +143,9 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
         onTap: () => _push(
           context,
           PlayerScreen(
-            url: _repo.api.liveUrl(c.streamId),
+            url: _repo.liveUrl(c),
             title: c.name,
-            liveStreamId: c.streamId,
+            liveStreamId: _repo.supportsEpg ? c.streamId : null,
           ),
         ),
       );
@@ -158,8 +158,8 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
           isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
           onToggle: () => FavoritesStore.instance.toggleVod(v),
         ),
-        onTap: () => _push(context,
-            PlayerScreen(url: _repo.api.vodUrl(v.streamId, v.ext), title: v.name)),
+        onTap: () => _push(
+            context, PlayerScreen(url: _repo.vodUrl(v), title: v.name)),
       );
 
   Widget _seriesTile(BuildContext context, XtSeries s) => ListTile(
@@ -170,8 +170,7 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
           isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
           onToggle: () => FavoritesStore.instance.toggleSeries(s),
         ),
-        onTap: () =>
-            _push(context, SeriesDetailScreen(api: _repo.api, series: s)),
+        onTap: () => _push(context, SeriesDetailScreen(series: s)),
       );
 
   void _push(BuildContext context, Widget screen) {

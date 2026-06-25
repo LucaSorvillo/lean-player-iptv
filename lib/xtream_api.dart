@@ -3,8 +3,9 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'config.dart';
 import 'models.dart';
+import 'services/catalog_source.dart';
+import 'services/settings_store.dart';
 
 /// Errore "parlante" delle chiamate API: il messaggio è già pronto per l'utente.
 class ApiException implements Exception {
@@ -14,26 +15,37 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Client per l'API Xtream Codes del server SCPTV.
+/// Client per l'API Xtream Codes (player_api.php).
 ///
-/// Tutte le richieste inviano l'header `User-Agent: SCPTVPlayer` (richiesto dal
-/// server). Gli URL di streaming puntano al primo hop, che risponde con redirect
-/// 302 al CDN edge + token: il player (libVLC) segue il redirect.
-class XtreamApi {
-  final String host;
-  final int port;
+/// L'`userAgent` dell'istanza viene inviato su tutte le richieste (e, tramite il
+/// player, anche allo streaming). Gli URL puntano al primo hop; il server può
+/// rispondere con redirect 302 + token che il player segue.
+class XtreamApi implements CatalogSource {
+  final String baseUrl;
   final String username;
   final String password;
+  final String userAgent;
 
   XtreamApi({
-    this.host = ScptvConfig.defaultHost,
-    this.port = ScptvConfig.defaultPort,
-    this.username = ScptvConfig.defaultUsername,
-    this.password = ScptvConfig.defaultPassword,
+    required this.baseUrl,
+    required this.username,
+    required this.password,
+    required this.userAgent,
   });
 
-  String get _base => 'http://$host:$port';
-  Map<String, String> get _headers => {'User-Agent': ScptvConfig.userAgent};
+  /// Costruisce il client dalle impostazioni salvate.
+  factory XtreamApi.fromSettings() {
+    final s = SettingsStore.instance;
+    return XtreamApi(
+      baseUrl: s.serverUrl,
+      username: s.username,
+      password: s.password,
+      userAgent: s.userAgent,
+    );
+  }
+
+  String get _base => SettingsStore.normalizeBaseUrl(baseUrl);
+  Map<String, String> get _headers => {'User-Agent': userAgent};
 
   Uri _api(Map<String, String> extra) =>
       Uri.parse('$_base/player_api.php').replace(queryParameters: {
@@ -65,6 +77,7 @@ class XtreamApi {
   }
 
   /// Login / info account: ritorna `user_info` (auth, status, exp_date, ...).
+  @override
   Future<Map<String, dynamic>> userInfo() async {
     final data = await _getJson(_api({}));
     if (data is Map<String, dynamic>) {
@@ -84,12 +97,16 @@ class XtreamApi {
     return [];
   }
 
+  @override
   Future<List<XtCategory>> liveCategories() =>
       _categories('get_live_categories');
+  @override
   Future<List<XtCategory>> vodCategories() => _categories('get_vod_categories');
+  @override
   Future<List<XtCategory>> seriesCategories() =>
       _categories('get_series_categories');
 
+  @override
   Future<List<XtLive>> liveStreams({String? categoryId}) async {
     final params = {'action': 'get_live_streams'};
     if (categoryId != null) params['category_id'] = categoryId;
@@ -103,6 +120,7 @@ class XtreamApi {
     return [];
   }
 
+  @override
   Future<List<XtVod>> vodStreams({String? categoryId}) async {
     final params = {'action': 'get_vod_streams'};
     if (categoryId != null) params['category_id'] = categoryId;
@@ -116,6 +134,7 @@ class XtreamApi {
     return [];
   }
 
+  @override
   Future<List<XtSeries>> seriesList({String? categoryId}) async {
     final params = {'action': 'get_series'};
     if (categoryId != null) params['category_id'] = categoryId;
@@ -130,6 +149,7 @@ class XtreamApi {
   }
 
   /// Episodi di una serie (get_series_info → mappa stagione→episodi, appiattita).
+  @override
   Future<List<XtEpisode>> seriesInfo(String seriesId) async {
     final data = await _getJson(_api({
       'action': 'get_series_info',
@@ -153,6 +173,7 @@ class XtreamApi {
   /// Palinsesto di un canale live. Prova `get_short_epg` (leggero: ora + a
   /// seguire); se vuoto/non supportato ricade su `get_simple_data_table`
   /// (l'endpoint usato dall'app ufficiale). Lista ordinata per orario.
+  @override
   Future<List<XtEpg>> shortEpg(String streamId, {int limit = 2}) async {
     for (final action in const ['get_short_epg', 'get_simple_data_table']) {
       final params = {'action': action, 'stream_id': streamId};
@@ -178,10 +199,17 @@ class XtreamApi {
   }
 
   // --- URL di streaming (primo hop; il server fa redirect 302 + token) ---
-  String liveUrl(String streamId) =>
-      '$_base/live/$username/$password/$streamId.ts';
-  String vodUrl(String streamId, String ext) =>
-      '$_base/movie/$username/$password/$streamId.$ext';
-  String episodeUrl(String episodeId, String ext) =>
-      '$_base/series/$username/$password/$episodeId.$ext';
+  @override
+  String liveUrl(XtLive c) => '$_base/live/$username/$password/${c.streamId}.ts';
+  @override
+  String vodUrl(XtVod v) =>
+      '$_base/movie/$username/$password/${v.streamId}.${v.ext}';
+  @override
+  String episodeUrl(XtEpisode e) =>
+      '$_base/series/$username/$password/${e.id}.${e.ext}';
+
+  @override
+  bool get supportsSeries => true;
+  @override
+  bool get supportsEpg => true;
 }

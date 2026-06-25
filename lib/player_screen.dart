@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
-import 'config.dart';
 import 'models.dart';
 import 'services/epg_service.dart';
+import 'services/settings_store.dart';
 
 /// Schermata di riproduzione: dato un URL (live / film / episodio) riproduce con
 /// media_kit (libmpv) forzando lo User-Agent richiesto dal server SCPTV.
@@ -35,7 +35,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void initState() {
     super.initState();
     _player.open(
-      Media(widget.url, httpHeaders: const {'User-Agent': ScptvConfig.userAgent}),
+      Media(widget.url,
+          httpHeaders: {'User-Agent': SettingsStore.instance.userAgent}),
     );
   }
 

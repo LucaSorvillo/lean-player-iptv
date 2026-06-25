@@ -23,12 +23,16 @@ class XtLive {
   final String categoryId;
   final String epgChannelId;
 
+  /// URL diretto (modalità M3U). Vuoto in Xtream: l'URL si costruisce da streamId.
+  final String url;
+
   const XtLive({
     required this.streamId,
     required this.name,
     required this.icon,
     required this.categoryId,
     required this.epgChannelId,
+    this.url = '',
   });
 
   factory XtLive.fromJson(Map<String, dynamic> j) => XtLive(
@@ -37,6 +41,7 @@ class XtLive {
         icon: '${j['stream_icon'] ?? ''}',
         categoryId: '${j['category_id'] ?? ''}',
         epgChannelId: '${j['epg_channel_id'] ?? ''}',
+        url: '${j['url'] ?? ''}',
       );
 
   Map<String, dynamic> toJson() => {
@@ -45,6 +50,7 @@ class XtLive {
         'stream_icon': icon,
         'category_id': categoryId,
         'epg_channel_id': epgChannelId,
+        'url': url,
       };
 }
 
@@ -55,12 +61,16 @@ class XtVod {
   final String categoryId;
   final String ext;
 
+  /// URL diretto (modalità M3U). Vuoto in Xtream: l'URL si costruisce da streamId.
+  final String url;
+
   const XtVod({
     required this.streamId,
     required this.name,
     required this.icon,
     required this.categoryId,
     required this.ext,
+    this.url = '',
   });
 
   factory XtVod.fromJson(Map<String, dynamic> j) => XtVod(
@@ -69,6 +79,7 @@ class XtVod {
         icon: '${j['stream_icon'] ?? ''}',
         categoryId: '${j['category_id'] ?? ''}',
         ext: '${j['container_extension'] ?? 'mp4'}',
+        url: '${j['url'] ?? ''}',
       );
 
   Map<String, dynamic> toJson() => {
@@ -77,6 +88,7 @@ class XtVod {
         'stream_icon': icon,
         'category_id': categoryId,
         'container_extension': ext,
+        'url': url,
       };
 }
 

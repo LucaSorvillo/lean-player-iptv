@@ -2,27 +2,27 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 import 'player_screen.dart';
+import 'services/catalog_repository.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
-import 'xtream_api.dart';
 
 /// Dettaglio di una serie: elenco episodi (tutte le stagioni) → player.
 class SeriesDetailScreen extends StatefulWidget {
-  final XtreamApi api;
   final XtSeries series;
 
-  const SeriesDetailScreen({super.key, required this.api, required this.series});
+  const SeriesDetailScreen({super.key, required this.series});
 
   @override
   State<SeriesDetailScreen> createState() => _SeriesDetailScreenState();
 }
 
 class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
+  final CatalogRepository _repo = CatalogRepository.instance;
   late Future<List<XtEpisode>> _future =
-      widget.api.seriesInfo(widget.series.seriesId);
+      _repo.source.seriesInfo(widget.series.seriesId);
 
-  void _retry() => setState(
-      () => _future = widget.api.seriesInfo(widget.series.seriesId));
+  void _retry() =>
+      setState(() => _future = _repo.source.seriesInfo(widget.series.seriesId));
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +60,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                 title: Text(e.title),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => PlayerScreen(
-                    url: widget.api.episodeUrl(e.id, e.ext),
+                    url: _repo.episodeUrl(e),
                     title: e.title,
                   ),
                 )),

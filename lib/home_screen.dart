@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'favorites_screen.dart';
+import 'login_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
 import 'search_delegate.dart';
@@ -9,12 +10,20 @@ import 'services/catalog_repository.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
 
-/// Shell principale: quattro schede (Live / Film / Serie / Preferiti) + ricerca.
+/// Shell principale: schede Live / Film / (Serie) / Preferiti + ricerca e
+/// impostazioni. La scheda Serie compare solo se la sorgente la supporta.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _TabDef {
+  final IconData icon;
+  final String label;
+  final Widget page;
+  _TabDef(this.icon, this.label, this.page);
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -23,15 +32,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const titles = [
-      'SCPTV — Live',
-      'SCPTV — Film',
-      'SCPTV — Serie',
-      'SCPTV — Preferiti',
+    final tabs = <_TabDef>[
+      _TabDef(Icons.live_tv, 'Live', _liveTab()),
+      _TabDef(Icons.movie, 'Film', _vodTab()),
+      if (_repo.supportsSeries)
+        _TabDef(Icons.video_library, 'Serie', _seriesTab()),
+      _TabDef(Icons.star, 'Preferiti', const FavoritesScreen()),
     ];
+    if (_index >= tabs.length) _index = 0;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(titles[_index]),
+        title: Text(tabs[_index].label),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -39,25 +51,24 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () =>
                 showSearch(context: context, delegate: GlobalSearchDelegate()),
           ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Impostazioni',
+            onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LoginScreen())),
+          ),
         ],
       ),
       body: IndexedStack(
         index: _index,
-        children: [
-          _liveTab(),
-          _vodTab(),
-          _seriesTab(),
-          FavoritesScreen(api: _repo.api),
-        ],
+        children: [for (final t in tabs) t.page],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.live_tv), label: 'Live'),
-          NavigationDestination(icon: Icon(Icons.movie), label: 'Film'),
-          NavigationDestination(icon: Icon(Icons.video_library), label: 'Serie'),
-          NavigationDestination(icon: Icon(Icons.star), label: 'Preferiti'),
+        destinations: [
+          for (final t in tabs)
+            NavigationDestination(icon: Icon(t.icon), label: t.label),
         ],
       ),
     );
@@ -70,12 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
         emptyMsg: 'Nessun canale',
         tileBuilder: (context, c) => LiveTile(
           channel: c,
-          onPlay: () => _openPlayer(
-            context,
-            _repo.api.liveUrl(c.streamId),
-            c.name,
-            liveStreamId: c.streamId,
-          ),
+          showEpg: _repo.supportsEpg,
+          onPlay: () => _openLive(context, c),
         ),
       );
 
@@ -92,8 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
             isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
             onToggle: () => FavoritesStore.instance.toggleVod(v),
           ),
-          onTap: () =>
-              _openPlayer(context, _repo.api.vodUrl(v.streamId, v.ext), v.name),
+          onTap: () => _openPlayer(context, _repo.vodUrl(v), v.name),
         ),
       );
 
@@ -111,18 +117,24 @@ class _HomeScreenState extends State<HomeScreen> {
             onToggle: () => FavoritesStore.instance.toggleSeries(s),
           ),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SeriesDetailScreen(api: _repo.api, series: s),
+            builder: (_) => SeriesDetailScreen(series: s),
           )),
         ),
       );
 
-  void _openPlayer(BuildContext context, String url, String title,
-      {String? liveStreamId}) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            PlayerScreen(url: url, title: title, liveStreamId: liveStreamId),
+  void _openLive(BuildContext context, XtLive c) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PlayerScreen(
+        url: _repo.liveUrl(c),
+        title: c.name,
+        liveStreamId: _repo.supportsEpg ? c.streamId : null,
       ),
+    ));
+  }
+
+  void _openPlayer(BuildContext context, String url, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: title)),
     );
   }
 }
@@ -161,7 +173,6 @@ class _CatalogTabState<T> extends State<_CatalogTab<T>> {
       _cats = widget.loadCategories();
       _selectedCat = null;
     });
-    // attende il completamento per tenere lo spinner del RefreshIndicator
     await _items.catchError((_) => <T>[]);
   }
 

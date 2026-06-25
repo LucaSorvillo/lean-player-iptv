@@ -3,15 +3,16 @@ import 'package:flutter/material.dart';
 import 'models.dart';
 import 'player_screen.dart';
 import 'series_detail_screen.dart';
+import 'services/catalog_repository.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
-import 'xtream_api.dart';
 
 /// Scheda "Preferiti": canali, film e serie salvati, in sezioni. Si aggiorna da
 /// sola (ListenableBuilder sullo store) quando si aggiunge/rimuove un preferito.
 class FavoritesScreen extends StatelessWidget {
-  final XtreamApi api;
-  const FavoritesScreen({super.key, required this.api});
+  const FavoritesScreen({super.key});
+
+  CatalogRepository get _repo => CatalogRepository.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -75,9 +76,9 @@ class FavoritesScreen extends StatelessWidget {
         onTap: () => _push(
           context,
           PlayerScreen(
-            url: api.liveUrl(c.streamId),
+            url: _repo.liveUrl(c),
             title: c.name,
-            liveStreamId: c.streamId,
+            liveStreamId: _repo.supportsEpg ? c.streamId : null,
           ),
         ),
       );
@@ -90,8 +91,7 @@ class FavoritesScreen extends StatelessWidget {
           isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
           onToggle: () => FavoritesStore.instance.toggleVod(v),
         ),
-        onTap: () => _push(context,
-            PlayerScreen(url: api.vodUrl(v.streamId, v.ext), title: v.name)),
+        onTap: () => _push(context, PlayerScreen(url: _repo.vodUrl(v), title: v.name)),
       );
 
   Widget _seriesTile(BuildContext context, XtSeries s) => ListTile(
@@ -102,7 +102,7 @@ class FavoritesScreen extends StatelessWidget {
           isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
           onToggle: () => FavoritesStore.instance.toggleSeries(s),
         ),
-        onTap: () => _push(context, SeriesDetailScreen(api: api, series: s)),
+        onTap: () => _push(context, SeriesDetailScreen(series: s)),
       );
 
   void _push(BuildContext context, Widget screen) {

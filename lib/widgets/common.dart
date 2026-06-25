@@ -133,10 +133,15 @@ class StreamLogo extends StatelessWidget {
 class LiveTile extends StatefulWidget {
   final XtLive channel;
   final VoidCallback onPlay;
+
+  /// Mostra "ora in onda" come sottotitolo (solo se la sorgente ha l'EPG).
+  final bool showEpg;
+
   const LiveTile({
     super.key,
     required this.channel,
     required this.onPlay,
+    this.showEpg = true,
   });
 
   @override
@@ -144,42 +149,48 @@ class LiveTile extends StatefulWidget {
 }
 
 class _LiveTileState extends State<LiveTile> {
-  late Future<EpgNowNext> _epg;
+  Future<EpgNowNext>? _epg;
 
   @override
   void initState() {
     super.initState();
-    _epg = EpgService.instance.nowNext(widget.channel.streamId);
+    if (widget.showEpg) {
+      _epg = EpgService.instance.nowNext(widget.channel.streamId);
+    }
   }
 
   @override
   void didUpdateWidget(LiveTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.channel.streamId != widget.channel.streamId) {
+    if (widget.showEpg &&
+        oldWidget.channel.streamId != widget.channel.streamId) {
       _epg = EpgService.instance.nowNext(widget.channel.streamId);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final epg = _epg;
     return ListTile(
       leading: StreamLogo(url: widget.channel.icon, fallback: Icons.live_tv),
       title: Text(widget.channel.name),
-      subtitle: FutureBuilder<EpgNowNext>(
-        future: _epg,
-        builder: (context, snap) {
-          final now = snap.data?.now;
-          if (now == null || now.title.isEmpty) {
-            return const SizedBox.shrink();
-          }
-          final t = now.startHHmm;
-          return Text(
-            t.isEmpty ? now.title : '$t · ${now.title}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
-        },
-      ),
+      subtitle: epg == null
+          ? null
+          : FutureBuilder<EpgNowNext>(
+              future: epg,
+              builder: (context, snap) {
+                final now = snap.data?.now;
+                if (now == null || now.title.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                final t = now.startHHmm;
+                return Text(
+                  t.isEmpty ? now.title : '$t · ${now.title}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+              },
+            ),
       trailing: FavStar(
         isFav: () =>
             FavoritesStore.instance.isLiveFav(widget.channel.streamId),
