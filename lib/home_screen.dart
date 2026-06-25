@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'browse_screen.dart';
+import 'detail_screen.dart';
 import 'favorites_screen.dart';
 import 'login_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
 import 'search_delegate.dart';
-import 'series_detail_screen.dart';
 import 'services/catalog_repository.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
 
 /// Shell principale: schede Live / Film / (Serie) / Preferiti + ricerca e
-/// impostazioni. La scheda Serie compare solo se la sorgente la supporta.
+/// impostazioni. Film e Serie usano la vista "Sfoglia" (hero + caroselli).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,10 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final tabs = <_TabDef>[
       _TabDef(Icons.live_tv, 'Live', _liveTab()),
-      _TabDef(Icons.movie, 'Film', _vodTab()),
+      _TabDef(Icons.movie, 'Film', _filmTab()),
       if (_repo.supportsSeries)
-        _TabDef(Icons.video_library, 'Serie', _seriesTab()),
-      _TabDef(Icons.star, 'Preferiti', const FavoritesScreen()),
+        _TabDef(Icons.video_library, 'Serie', _serieTab()),
+      _TabDef(Icons.star, 'La mia lista', const FavoritesScreen()),
     ];
     if (_index >= tabs.length) _index = 0;
 
@@ -74,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- Live: lista scura con EPG e filtro categoria ---
   Widget _liveTab() => _CatalogTab<XtLive>(
         loadItems: _repo.live,
         loadCategories: _repo.liveCategories,
@@ -86,39 +88,40 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  Widget _vodTab() => _CatalogTab<XtVod>(
-        loadItems: _repo.vod,
-        loadCategories: _repo.vodCategories,
+  // --- Film: Sfoglia (hero + caroselli) ---
+  Widget _filmTab() => BrowseScreen<XtVod>(
+        categories: _repo.vodCategories,
+        items: _repo.vod,
         categoryIdOf: (v) => v.categoryId,
+        posterOf: (v) => v.icon,
+        nameOf: (v) => v.name,
+        fallback: Icons.movie,
         emptyMsg: 'Nessun film',
-        tileBuilder: (context, v) => ListTile(
-          leading: StreamLogo(
-              url: v.icon, fallback: Icons.movie, width: 40, height: 56),
-          title: Text(v.name),
-          trailing: FavStar(
-            isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
-            onToggle: () => FavoritesStore.instance.toggleVod(v),
-          ),
-          onTap: () => _openPlayer(context, _repo.vodUrl(v), v.name),
+        onOpen: (ctx, v) => Navigator.of(ctx).push(
+            MaterialPageRoute(builder: (_) => DetailScreen.movie(v))),
+        onHeroPlay: (ctx, v) => _openPlayer(ctx, _repo.vodUrl(v), v.name),
+        favStar: (v) => FavStar(
+          isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
+          onToggle: () => FavoritesStore.instance.toggleVod(v),
         ),
       );
 
-  Widget _seriesTab() => _CatalogTab<XtSeries>(
-        loadItems: _repo.series,
-        loadCategories: _repo.seriesCategories,
+  // --- Serie: Sfoglia (hero + caroselli) ---
+  Widget _serieTab() => BrowseScreen<XtSeries>(
+        categories: _repo.seriesCategories,
+        items: _repo.series,
         categoryIdOf: (s) => s.categoryId,
+        posterOf: (s) => s.cover,
+        nameOf: (s) => s.name,
+        fallback: Icons.video_library,
         emptyMsg: 'Nessuna serie',
-        tileBuilder: (context, s) => ListTile(
-          leading: StreamLogo(
-              url: s.cover, fallback: Icons.video_library, width: 40, height: 56),
-          title: Text(s.name),
-          trailing: FavStar(
-            isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
-            onToggle: () => FavoritesStore.instance.toggleSeries(s),
-          ),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SeriesDetailScreen(series: s),
-          )),
+        onOpen: (ctx, s) => Navigator.of(ctx).push(
+            MaterialPageRoute(builder: (_) => DetailScreen.series(s))),
+        onHeroPlay: (ctx, s) => Navigator.of(ctx).push(
+            MaterialPageRoute(builder: (_) => DetailScreen.series(s))),
+        favStar: (s) => FavStar(
+          isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
+          onToggle: () => FavoritesStore.instance.toggleSeries(s),
         ),
       );
 
@@ -139,8 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Scheda generica di catalogo: header categoria + pull-to-refresh + lista
-/// filtrata client-side per categoria. Riusata da Live / Film / Serie.
+/// Scheda generica a lista (usata da Live): header categoria + pull-to-refresh.
 class _CatalogTab<T> extends StatefulWidget {
   final Future<List<T>> Function() loadItems;
   final Future<List<XtCategory>> Function() loadCategories;

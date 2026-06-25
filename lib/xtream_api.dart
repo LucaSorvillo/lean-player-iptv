@@ -148,26 +148,44 @@ class XtreamApi implements CatalogSource {
     return [];
   }
 
-  /// Episodi di una serie (get_series_info → mappa stagione→episodi, appiattita).
+  /// Dettagli serie (get_series_info → trama + episodi di tutte le stagioni).
   @override
-  Future<List<XtEpisode>> seriesInfo(String seriesId) async {
+  Future<XtSeriesInfo> seriesInfo(String seriesId) async {
     final data = await _getJson(_api({
       'action': 'get_series_info',
       'series_id': seriesId,
     }));
-    final out = <XtEpisode>[];
-    if (data is Map && data['episodes'] is Map) {
-      for (final season in (data['episodes'] as Map).values) {
-        if (season is List) {
-          for (final e in season) {
-            if (e is Map) {
-              out.add(XtEpisode.fromJson(e.cast<String, dynamic>()));
+    final episodes = <XtEpisode>[];
+    var plot = '';
+    if (data is Map) {
+      final info = data['info'];
+      if (info is Map) plot = '${info['plot'] ?? ''}';
+      if (data['episodes'] is Map) {
+        for (final season in (data['episodes'] as Map).values) {
+          if (season is List) {
+            for (final e in season) {
+              if (e is Map) {
+                episodes.add(XtEpisode.fromJson(e.cast<String, dynamic>()));
+              }
             }
           }
         }
       }
     }
-    return out;
+    return XtSeriesInfo(plot: plot, episodes: episodes);
+  }
+
+  /// Dettagli film (get_vod_info → trama e metadati).
+  @override
+  Future<XtVodInfo> vodInfo(String streamId) async {
+    final data = await _getJson(_api({
+      'action': 'get_vod_info',
+      'vod_id': streamId,
+    }));
+    if (data is Map && data['info'] is Map) {
+      return XtVodInfo.fromInfo((data['info'] as Map).cast<String, dynamic>());
+    }
+    return XtVodInfo.empty;
   }
 
   /// Palinsesto di un canale live. Prova `get_short_epg` (leggero: ora + a

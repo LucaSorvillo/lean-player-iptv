@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'detail_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
-import 'series_detail_screen.dart';
 import 'services/catalog_repository.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
+import 'widgets/poster_card.dart';
 
-/// Scheda "Preferiti": canali, film e serie salvati, in sezioni. Si aggiorna da
-/// sola (ListenableBuilder sullo store) quando si aggiunge/rimuove un preferito.
+/// "La mia lista": preferiti in sezioni. Film/Serie a griglia di locandine,
+/// Live a righe. Si aggiorna da sola (ListenableBuilder sullo store).
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
 
@@ -25,8 +26,8 @@ class FavoritesScreen extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                'Nessun preferito.\n\nTocca la ⭐ accanto a un canale, film o '
-                'serie per salvarlo qui.',
+                'La tua lista è vuota.\n\nTocca "+ La mia lista" o la ⭐ su un '
+                'contenuto per salvarlo qui.',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -34,76 +35,86 @@ class FavoritesScreen extends StatelessWidget {
         }
         return ListView(
           children: [
-            ..._section(context, 'Live', store.live, (c) => _liveTile(context, c)),
-            ..._section(context, 'Film', store.vod, (v) => _vodTile(context, v)),
-            ..._section(
-                context, 'Serie', store.series, (s) => _seriesTile(context, s)),
+            if (store.live.isNotEmpty) ..._liveSection(context, store.live),
+            if (store.vod.isNotEmpty)
+              _posterSection<XtVod>(context, 'Film', store.vod, (v) => v.icon,
+                  (v) => v.name, Icons.movie, (v) => DetailScreen.movie(v)),
+            if (store.series.isNotEmpty)
+              _posterSection<XtSeries>(context, 'Serie', store.series,
+                  (s) => s.cover, (s) => s.name, Icons.video_library,
+                  (s) => DetailScreen.series(s)),
           ],
         );
       },
     );
   }
 
-  List<Widget> _section<T>(
-    BuildContext context,
-    String title,
-    List<T> items,
-    Widget Function(T) tile,
-  ) {
-    if (items.isEmpty) return const [];
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+  Widget _header(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Text(
-          '$title (${items.length})',
+          text,
           style: Theme.of(context)
               .textTheme
               .titleSmall
               ?.copyWith(color: Theme.of(context).colorScheme.primary),
         ),
-      ),
-      ...items.map(tile),
+      );
+
+  List<Widget> _liveSection(BuildContext context, List<XtLive> live) {
+    return [
+      _header(context, 'Live (${live.length})'),
+      ...live.map((c) => ListTile(
+            leading: StreamLogo(url: c.icon, fallback: Icons.live_tv),
+            title: Text(c.name),
+            trailing: FavStar(
+              isFav: () => FavoritesStore.instance.isLiveFav(c.streamId),
+              onToggle: () => FavoritesStore.instance.toggleLive(c),
+            ),
+            onTap: () => _push(
+              context,
+              PlayerScreen(
+                url: _repo.liveUrl(c),
+                title: c.name,
+                liveStreamId: _repo.supportsEpg ? c.streamId : null,
+              ),
+            ),
+          )),
     ];
   }
 
-  Widget _liveTile(BuildContext context, XtLive c) => ListTile(
-        leading: StreamLogo(url: c.icon, fallback: Icons.live_tv),
-        title: Text(c.name),
-        trailing: FavStar(
-          isFav: () => FavoritesStore.instance.isLiveFav(c.streamId),
-          onToggle: () => FavoritesStore.instance.toggleLive(c),
-        ),
-        onTap: () => _push(
-          context,
-          PlayerScreen(
-            url: _repo.liveUrl(c),
-            title: c.name,
-            liveStreamId: _repo.supportsEpg ? c.streamId : null,
+  Widget _posterSection<X>(
+    BuildContext context,
+    String title,
+    List<X> list,
+    String Function(X) posterOf,
+    String Function(X) nameOf,
+    IconData fallback,
+    Widget Function(X) detailOf,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(context, '$title (${list.length})'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 12,
+            children: [
+              for (final it in list)
+                PosterCard(
+                  imageUrl: posterOf(it),
+                  title: nameOf(it),
+                  fallback: fallback,
+                  width: 105,
+                  onTap: () => _push(context, detailOf(it)),
+                ),
+            ],
           ),
         ),
-      );
-
-  Widget _vodTile(BuildContext context, XtVod v) => ListTile(
-        leading: StreamLogo(
-            url: v.icon, fallback: Icons.movie, width: 40, height: 56),
-        title: Text(v.name),
-        trailing: FavStar(
-          isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
-          onToggle: () => FavoritesStore.instance.toggleVod(v),
-        ),
-        onTap: () => _push(context, PlayerScreen(url: _repo.vodUrl(v), title: v.name)),
-      );
-
-  Widget _seriesTile(BuildContext context, XtSeries s) => ListTile(
-        leading: StreamLogo(
-            url: s.cover, fallback: Icons.video_library, width: 40, height: 56),
-        title: Text(s.name),
-        trailing: FavStar(
-          isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
-          onToggle: () => FavoritesStore.instance.toggleSeries(s),
-        ),
-        onTap: () => _push(context, SeriesDetailScreen(series: s)),
-      );
+      ],
+    );
+  }
 
   void _push(BuildContext context, Widget screen) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));

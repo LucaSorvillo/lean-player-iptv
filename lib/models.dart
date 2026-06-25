@@ -134,6 +134,43 @@ class XtEpisode {
       );
 }
 
+/// Dettagli di un film (da `get_vod_info` → `info`).
+class XtVodInfo {
+  final String plot;
+  final String genre;
+  final String year;
+  final String rating;
+  final String duration;
+
+  const XtVodInfo({
+    this.plot = '',
+    this.genre = '',
+    this.year = '',
+    this.rating = '',
+    this.duration = '',
+  });
+
+  static const XtVodInfo empty = XtVodInfo();
+
+  factory XtVodInfo.fromInfo(Map<String, dynamic> j) => XtVodInfo(
+        plot: '${j['plot'] ?? j['description'] ?? ''}',
+        genre: '${j['genre'] ?? ''}',
+        year: '${j['year'] ?? j['releasedate'] ?? ''}',
+        rating: '${j['rating'] ?? ''}',
+        duration: '${j['duration'] ?? ''}',
+      );
+}
+
+/// Dettagli di una serie: trama + episodi (da `get_series_info`).
+class XtSeriesInfo {
+  final String plot;
+  final List<XtEpisode> episodes;
+
+  const XtSeriesInfo({this.plot = '', this.episodes = const []});
+
+  static const XtSeriesInfo empty = XtSeriesInfo();
+}
+
 /// Decodifica un campo Xtream che di norma è base64 (titoli/descrizioni EPG).
 /// Se non è base64 valido, restituisce la stringa così com'è.
 String decodeXtreamText(dynamic v) {

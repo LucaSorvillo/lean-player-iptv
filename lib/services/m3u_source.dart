@@ -148,8 +148,9 @@ class M3uSource implements CatalogSource {
   @override
   Future<List<XtSeries>> seriesList() async => const <XtSeries>[];
   @override
-  Future<List<XtEpisode>> seriesInfo(String seriesId) async =>
-      const <XtEpisode>[];
+  Future<XtSeriesInfo> seriesInfo(String seriesId) async => XtSeriesInfo.empty;
+  @override
+  Future<XtVodInfo> vodInfo(String streamId) async => XtVodInfo.empty;
   @override
   Future<List<XtEpg>> shortEpg(String streamId, {int limit = 2}) async =>
       const <XtEpg>[];

@@ -16,7 +16,8 @@ abstract class CatalogSource {
   Future<List<XtVod>> vodStreams();
   Future<List<XtCategory>> seriesCategories();
   Future<List<XtSeries>> seriesList();
-  Future<List<XtEpisode>> seriesInfo(String seriesId);
+  Future<XtSeriesInfo> seriesInfo(String seriesId);
+  Future<XtVodInfo> vodInfo(String streamId);
   Future<List<XtEpg>> shortEpg(String streamId, {int limit});
 
   /// URL riproducibile dell'elemento (Xtream lo costruisce; M3U è diretto).

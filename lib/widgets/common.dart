@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models.dart';
@@ -118,12 +119,13 @@ class StreamLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url.isEmpty) return Icon(fallback, size: width);
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       width: width,
       height: height,
       fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Icon(fallback, size: width),
+      placeholder: (_, _) => Container(width: width, height: height, color: Colors.white10),
+      errorWidget: (_, _, _) => Icon(fallback, size: width),
     );
   }
 }

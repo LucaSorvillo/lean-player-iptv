@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'detail_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
-import 'series_detail_screen.dart';
 import 'services/catalog_repository.dart';
-import 'services/favorites_store.dart';
 import 'widgets/common.dart';
+import 'widgets/poster_card.dart';
 
 class _Catalog {
   final List<XtLive> live;
@@ -31,18 +31,16 @@ String _normalizeSearch(String s) {
   for (final ch in s.toLowerCase().split('')) {
     sb.write(accents[ch] ?? ch);
   }
-  // Rimuove tutto ciò che non è lettera o numero (apostrofi, spazi, trattini,
-  // punti, &, ...): così i separatori non impediscono mai il match.
   return sb.toString().replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '');
 }
 
-/// Ricerca globale: filtra per nome canali + film + serie insieme, risultati
-/// raggruppati per tipo. I dati arrivano dalla cache di [CatalogRepository].
+/// Ricerca globale: filtra canali + film + serie; live a righe, film/serie a
+/// griglia di locandine. I dati arrivano dalla cache di [CatalogRepository].
 class GlobalSearchDelegate extends SearchDelegate<void> {
   GlobalSearchDelegate()
       : super(searchFieldLabel: 'Cerca canali, film, serie');
 
-  static const _cap = 100; // max risultati mostrati per sezione
+  static const _cap = 100;
   final CatalogRepository _repo = CatalogRepository.instance;
   Future<_Catalog>? _catalogFuture;
 
@@ -116,84 +114,92 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
         }
         return ListView(
           children: [
-            ..._section(context, 'Live', live, (c) => _liveTile(context, c)),
-            ..._section(context, 'Film', vod, (v) => _vodTile(context, v)),
-            ..._section(
-                context, 'Serie', series, (s) => _seriesTile(context, s)),
+            if (live.isNotEmpty) ..._liveSection(context, live),
+            if (vod.isNotEmpty)
+              _posterSection<XtVod>(context, 'Film', vod, (v) => v.icon,
+                  (v) => v.name, Icons.movie, (v) => DetailScreen.movie(v)),
+            if (series.isNotEmpty)
+              _posterSection<XtSeries>(context, 'Serie', series, (s) => s.cover,
+                  (s) => s.name, Icons.video_library,
+                  (s) => DetailScreen.series(s)),
           ],
         );
       },
     );
   }
 
-  List<Widget> _section<T>(
-    BuildContext context,
-    String title,
-    List<T> all,
-    Widget Function(T) tile,
-  ) {
-    if (all.isEmpty) return const [];
-    final shown = all.take(_cap).toList();
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+  Widget _header(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Text(
-          '$title (${all.length})',
+          text,
           style: Theme.of(context)
               .textTheme
               .titleSmall
               ?.copyWith(color: Theme.of(context).colorScheme.primary),
         ),
-      ),
-      ...shown.map(tile),
-      if (all.length > _cap)
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Text('Affina la ricerca per vedere altri risultati.',
-              style: TextStyle(fontStyle: FontStyle.italic)),
-        ),
+      );
+
+  Widget _more() => const Padding(
+        padding: EdgeInsets.all(12),
+        child: Text('Affina la ricerca per vedere altri risultati.',
+            style: TextStyle(fontStyle: FontStyle.italic)),
+      );
+
+  List<Widget> _liveSection(BuildContext context, List<XtLive> live) {
+    final shown = live.take(_cap).toList();
+    return [
+      _header(context, 'Live (${live.length})'),
+      ...shown.map((c) => ListTile(
+            leading: StreamLogo(url: c.icon, fallback: Icons.live_tv),
+            title: Text(c.name),
+            onTap: () => _push(
+              context,
+              PlayerScreen(
+                url: _repo.liveUrl(c),
+                title: c.name,
+                liveStreamId: _repo.supportsEpg ? c.streamId : null,
+              ),
+            ),
+          )),
+      if (live.length > _cap) _more(),
     ];
   }
 
-  Widget _liveTile(BuildContext context, XtLive c) => ListTile(
-        leading: StreamLogo(url: c.icon, fallback: Icons.live_tv),
-        title: Text(c.name),
-        trailing: FavStar(
-          isFav: () => FavoritesStore.instance.isLiveFav(c.streamId),
-          onToggle: () => FavoritesStore.instance.toggleLive(c),
-        ),
-        onTap: () => _push(
-          context,
-          PlayerScreen(
-            url: _repo.liveUrl(c),
-            title: c.name,
-            liveStreamId: _repo.supportsEpg ? c.streamId : null,
+  Widget _posterSection<X>(
+    BuildContext context,
+    String title,
+    List<X> list,
+    String Function(X) posterOf,
+    String Function(X) nameOf,
+    IconData fallback,
+    Widget Function(X) detailOf,
+  ) {
+    final shown = list.take(_cap).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(context, '$title (${list.length})'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 12,
+            children: [
+              for (final it in shown)
+                PosterCard(
+                  imageUrl: posterOf(it),
+                  title: nameOf(it),
+                  fallback: fallback,
+                  width: 105,
+                  onTap: () => _push(context, detailOf(it)),
+                ),
+            ],
           ),
         ),
-      );
-
-  Widget _vodTile(BuildContext context, XtVod v) => ListTile(
-        leading: StreamLogo(
-            url: v.icon, fallback: Icons.movie, width: 40, height: 56),
-        title: Text(v.name),
-        trailing: FavStar(
-          isFav: () => FavoritesStore.instance.isVodFav(v.streamId),
-          onToggle: () => FavoritesStore.instance.toggleVod(v),
-        ),
-        onTap: () => _push(
-            context, PlayerScreen(url: _repo.vodUrl(v), title: v.name)),
-      );
-
-  Widget _seriesTile(BuildContext context, XtSeries s) => ListTile(
-        leading: StreamLogo(
-            url: s.cover, fallback: Icons.video_library, width: 40, height: 56),
-        title: Text(s.name),
-        trailing: FavStar(
-          isFav: () => FavoritesStore.instance.isSeriesFav(s.seriesId),
-          onToggle: () => FavoritesStore.instance.toggleSeries(s),
-        ),
-        onTap: () => _push(context, SeriesDetailScreen(series: s)),
-      );
+        if (list.length > _cap) _more(),
+      ],
+    );
+  }
 
   void _push(BuildContext context, Widget screen) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));

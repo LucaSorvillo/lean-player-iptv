@@ -6,6 +6,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'services/favorites_store.dart';
 import 'services/settings_store.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +23,7 @@ class ScptvApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: ScptvConfig.appName,
         debugShowCheckedModeBanner: false,
-        theme: ThemeData.dark(useMaterial3: true),
+        theme: buildTheme(),
         home: SettingsStore.instance.isConfigured
             ? const HomeScreen()
             : const LoginScreen(firstRun: true),
