@@ -67,7 +67,6 @@ class ContinueWatchingRow extends StatelessWidget {
       screen = PlayerScreen(
         url: _repo.liveUrl(c),
         title: e.name,
-        liveStreamId: _repo.supportsEpg ? c.streamId : null,
         resume: e.toRef(),
       );
     }

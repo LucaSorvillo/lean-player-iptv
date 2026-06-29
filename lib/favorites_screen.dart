@@ -76,7 +76,6 @@ class FavoritesScreen extends StatelessWidget {
               PlayerScreen(
                 url: _repo.liveUrl(c),
                 title: c.name,
-                liveStreamId: _repo.supportsEpg ? c.streamId : null,
                 resume: ContinueRef.live(c),
               ),
             ),

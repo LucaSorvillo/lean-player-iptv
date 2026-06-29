@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'config.dart';
@@ -12,6 +13,9 @@ import 'theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  // App in verticale; solo il player va in orizzontale (lo imposta da sé).
+  await SystemChrome.setPreferredOrientations(
+      const [DeviceOrientation.portraitUp]);
   await SettingsStore.instance.load();
   await FavoritesStore.instance.load();
   await ContinueWatchingStore.instance.load();

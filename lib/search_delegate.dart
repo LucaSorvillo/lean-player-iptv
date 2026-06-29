@@ -158,7 +158,6 @@ class GlobalSearchDelegate extends SearchDelegate<void> {
               PlayerScreen(
                 url: _repo.liveUrl(c),
                 title: c.name,
-                liveStreamId: _repo.supportsEpg ? c.streamId : null,
                 resume: ContinueRef.live(c),
               ),
             ),

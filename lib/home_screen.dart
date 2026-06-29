@@ -135,7 +135,6 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => PlayerScreen(
         url: _repo.liveUrl(c),
         title: c.name,
-        liveStreamId: _repo.supportsEpg ? c.streamId : null,
         resume: ContinueRef.live(c),
       ),
     ));
