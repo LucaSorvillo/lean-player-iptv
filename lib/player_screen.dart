@@ -109,16 +109,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Niente AppBar: video edge-to-edge (immersivo). Solo un tasto "indietro".
     return Scaffold(
       backgroundColor: Colors.black,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(widget.title),
+      body: Stack(
+        children: [
+          Positioned.fill(child: Video(controller: _controller)),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Material(
+                  color: Colors.black45,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    tooltip: 'Indietro',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      body: SizedBox.expand(child: Video(controller: _controller)),
     );
   }
 }
