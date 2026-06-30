@@ -20,9 +20,4 @@ class ScptvConfig {
     'okhttp/4.9.3',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
   ];
-
-  // --- Esempio SCPTV (solo riferimento, non usato a runtime) ---
-  static const String exampleServerUrl = 'http://android.cdnscp.com:8880';
-  static const String exampleUsername = 'narvalo117';
-  static const String examplePassword = '24012026';
 }
