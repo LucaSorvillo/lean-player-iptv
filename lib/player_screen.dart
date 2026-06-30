@@ -59,6 +59,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
   BoxFit _fit = BoxFit.contain;
   double? _aspectRatio;
 
+  // Modalità proporzioni (ciclo, come l'app Android): nome + fit + aspectRatio.
+  static const List<({String label, BoxFit fit, double? ar})> _aspectModes = [
+    (label: 'Adatta', fit: BoxFit.contain, ar: null),
+    (label: 'Riempi', fit: BoxFit.cover, ar: null),
+    (label: 'Stira', fit: BoxFit.fill, ar: null),
+    (label: '16:9', fit: BoxFit.contain, ar: 16 / 9),
+    (label: '4:3', fit: BoxFit.contain, ar: 4 / 3),
+  ];
+  int _aspectIndex = 0;
+  String _aspectLabel = '';
+  bool _aspectLabelVisible = false;
+  Timer? _aspectLabelTimer;
+
   bool get _isSeries =>
       widget.series != null &&
       widget.episodes != null &&
@@ -148,6 +161,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     for (final s in _subs) {
       s.cancel();
     }
+    _aspectLabelTimer?.cancel();
     if (_resume != null) _record();
     _player.dispose();
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
@@ -157,44 +171,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // --- Menu / overlay ---
 
-  void _showAspectMenu() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF161616),
-      builder: (ctx) {
-        Widget item(String label, BoxFit fit, double? ar) => ListTile(
-              title: Text(label, style: const TextStyle(color: Colors.white)),
-              trailing: (_fit == fit && _aspectRatio == ar)
-                  ? const Icon(Icons.check, color: Colors.white)
-                  : null,
-              onTap: () {
-                setState(() {
-                  _fit = fit;
-                  _aspectRatio = ar;
-                });
-                Navigator.of(ctx).pop();
-              },
-            );
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('Proporzioni',
-                    style: TextStyle(
-                        color: Colors.white70, fontWeight: FontWeight.bold)),
-              ),
-              item('Adatta', BoxFit.contain, null),
-              item('Riempi', BoxFit.cover, null),
-              item('Stira', BoxFit.fill, null),
-              item('16:9', BoxFit.contain, 16 / 9),
-              item('4:3', BoxFit.contain, 4 / 3),
-            ],
-          ),
-        );
-      },
-    );
+  // Cambia ciclicamente le proporzioni e mostra l'etichetta transitoria.
+  void _cycleAspect() {
+    _aspectIndex = (_aspectIndex + 1) % _aspectModes.length;
+    final m = _aspectModes[_aspectIndex];
+    setState(() {
+      _fit = m.fit;
+      _aspectRatio = m.ar;
+      _aspectLabel = m.label;
+      _aspectLabelVisible = true;
+    });
+    _aspectLabelTimer?.cancel();
+    _aspectLabelTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _aspectLabelVisible = false);
+    });
   }
 
   void _showTracks() {
@@ -317,10 +307,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   MaterialVideoControlsThemeData _controlsTheme() {
     return MaterialVideoControlsThemeData(
-      seekBarMargin: const EdgeInsets.only(left: 16, right: 16, bottom: 52),
+      seekOnDoubleTap: true,
+      seekBarMargin: const EdgeInsets.only(left: 16, right: 16, bottom: 72),
       bottomButtonBarMargin:
           const EdgeInsets.only(left: 16, right: 16, bottom: 12),
       topButtonBarMargin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      // In alto resta solo Indietro (+ titolo).
       topButtonBar: [
         MaterialCustomButton(
           icon: const Icon(Icons.arrow_back),
@@ -335,9 +327,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
+      ],
+      // Tutti gli altri pulsanti nel footer, sotto la seek bar.
+      bottomButtonBar: [
+        const MaterialPositionIndicator(),
+        const Spacer(),
         MaterialCustomButton(
           icon: const Icon(Icons.aspect_ratio),
-          onPressed: _showAspectMenu,
+          onPressed: _cycleAspect,
         ),
         MaterialCustomButton(
           icon: const Icon(Icons.tune),
@@ -348,10 +345,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
             icon: const Icon(Icons.video_library),
             onPressed: _showEpisodes,
           ),
-      ],
-      bottomButtonBar: [
-        const MaterialPositionIndicator(),
-        const Spacer(),
         if (_isSeries)
           MaterialCustomButton(
             icon: const Icon(Icons.skip_next),
@@ -366,15 +359,45 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final theme = _controlsTheme();
     return Scaffold(
       backgroundColor: Colors.black,
-      body: MaterialVideoControlsTheme(
-        normal: theme,
-        fullscreen: theme,
-        child: Video(
-          controller: _controller,
-          controls: MaterialVideoControls,
-          fit: _fit,
-          aspectRatio: _aspectRatio,
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MaterialVideoControlsTheme(
+              normal: theme,
+              fullscreen: theme,
+              child: Video(
+                controller: _controller,
+                controls: MaterialVideoControls,
+                fit: _fit,
+                aspectRatio: _aspectRatio,
+              ),
+            ),
+          ),
+          // Etichetta transitoria delle proporzioni (appare e svanisce).
+          IgnorePointer(
+            child: Center(
+              child: AnimatedOpacity(
+                opacity: _aspectLabelVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xB3000000),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _aspectLabel,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
