@@ -14,6 +14,11 @@ class XtCategory {
         id: '${j['category_id']}',
         name: '${j['category_name'] ?? ''}',
       );
+
+  Map<String, dynamic> toJson() => {
+        'category_id': id,
+        'category_name': name,
+      };
 }
 
 class XtLive {

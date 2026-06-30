@@ -8,6 +8,7 @@ import 'models.dart';
 import 'player_screen.dart';
 import 'search_delegate.dart';
 import 'services/catalog_repository.dart';
+import 'services/connectivity_service.dart';
 import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
 import 'widgets/common.dart';
@@ -62,9 +63,42 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _index,
-        children: [for (final t in tabs) t.page],
+      body: Column(
+        children: [
+          ListenableBuilder(
+            listenable: ConnectivityService.instance,
+            builder: (context, _) {
+              if (ConnectivityService.instance.isOnline) {
+                return const SizedBox.shrink();
+              }
+              return Container(
+                width: double.infinity,
+                color: const Color(0xFFB00020),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.cloud_off, size: 16, color: Colors.white),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Sei offline — contenuti dalla cache',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: _index,
+              children: [for (final t in tabs) t.page],
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,

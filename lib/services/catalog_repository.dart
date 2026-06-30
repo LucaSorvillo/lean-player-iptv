@@ -1,5 +1,6 @@
 import '../models.dart';
 import '../xtream_api.dart';
+import 'catalog_cache_store.dart';
 import 'catalog_source.dart';
 import 'epg_service.dart';
 import 'm3u_source.dart';
@@ -17,9 +18,19 @@ class CatalogRepository {
 
   CatalogSource _source = _build();
 
-  static CatalogSource _build() => SettingsStore.instance.isM3u
-      ? M3uSource.fromSettings()
-      : XtreamApi.fromSettings();
+  static CatalogSource _build() {
+    final inner = SettingsStore.instance.isM3u
+        ? M3uSource.fromSettings()
+        : XtreamApi.fromSettings();
+    return _CachingCatalogSource(inner, CatalogCacheStore(_cacheNamespace()));
+  }
+
+  /// Chiave di cache su disco: isola profili/playlist diversi.
+  static String _cacheNamespace() {
+    final s = SettingsStore.instance;
+    final raw = s.isM3u ? 'm3u|${s.m3uUrl}' : 'xt|${s.serverUrl}|${s.username}';
+    return raw.hashCode.toUnsigned(32).toRadixString(16);
+  }
 
   CatalogSource get source => _source;
   bool get supportsSeries => _source.supportsSeries;
@@ -95,8 +106,80 @@ class CatalogRepository {
 
   /// Ricrea la sorgente dalle impostazioni e svuota tutte le cache.
   void rebuild() {
+    final old = _source;
     _source = _build();
     refresh();
     EpgService.instance.clear();
+    if (old is _CachingCatalogSource) old.clearCache();
   }
+}
+
+/// Decoratore che persiste su disco le liste del catalogo: write-through sui
+/// fetch riusciti e fallback al disco quando la rete fallisce (avvio offline).
+class _CachingCatalogSource implements CatalogSource {
+  _CachingCatalogSource(this._inner, this._cache);
+  final CatalogSource _inner;
+  final CatalogCacheStore _cache;
+
+  Future<void> clearCache() => _cache.clear();
+
+  Future<List<T>> _cached<T>(
+    String key,
+    Future<List<T>> Function() fetch,
+    Map<String, dynamic> Function(T) toJson,
+    T Function(Map<String, dynamic>) fromJson,
+  ) async {
+    try {
+      final fresh = await fetch();
+      await _cache.saveList(key, fresh, toJson);
+      return fresh;
+    } catch (_) {
+      final disk = await _cache.loadList(key, fromJson);
+      if (disk != null) return disk; // fallback offline
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<XtLive>> liveStreams() =>
+      _cached('live', _inner.liveStreams, (e) => e.toJson(), XtLive.fromJson);
+  @override
+  Future<List<XtVod>> vodStreams() =>
+      _cached('vod', _inner.vodStreams, (e) => e.toJson(), XtVod.fromJson);
+  @override
+  Future<List<XtSeries>> seriesList() =>
+      _cached('series', _inner.seriesList, (e) => e.toJson(), XtSeries.fromJson);
+  @override
+  Future<List<XtCategory>> liveCategories() => _cached('live_cats',
+      _inner.liveCategories, (e) => e.toJson(), XtCategory.fromJson);
+  @override
+  Future<List<XtCategory>> vodCategories() => _cached(
+      'vod_cats', _inner.vodCategories, (e) => e.toJson(), XtCategory.fromJson);
+  @override
+  Future<List<XtCategory>> seriesCategories() => _cached('series_cats',
+      _inner.seriesCategories, (e) => e.toJson(), XtCategory.fromJson);
+
+  // Passthrough: dettagli/EPG/URL/flag non sono cachati su disco.
+  @override
+  Future<Map<String, dynamic>> userInfo() => _inner.userInfo();
+  @override
+  Future<XtSeriesInfo> seriesInfo(String seriesId) =>
+      _inner.seriesInfo(seriesId);
+  @override
+  Future<XtVodInfo> vodInfo(String streamId) => _inner.vodInfo(streamId);
+  @override
+  Future<List<XtEpg>> shortEpg(String streamId, {int limit = 2}) =>
+      _inner.shortEpg(streamId, limit: limit);
+  @override
+  Future<List<XtEpg>> fullEpg(String streamId) => _inner.fullEpg(streamId);
+  @override
+  String liveUrl(XtLive c) => _inner.liveUrl(c);
+  @override
+  String vodUrl(XtVod v) => _inner.vodUrl(v);
+  @override
+  String episodeUrl(XtEpisode e) => _inner.episodeUrl(e);
+  @override
+  bool get supportsSeries => _inner.supportsSeries;
+  @override
+  bool get supportsEpg => _inner.supportsEpg;
 }
