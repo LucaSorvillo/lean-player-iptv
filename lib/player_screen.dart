@@ -11,8 +11,9 @@ import 'services/continue_watching_store.dart';
 import 'services/settings_store.dart';
 
 /// Riproduzione a schermo intero orizzontale (stile Netflix): landscape +
-/// immersivo, controlli che si auto-nascondono, con pulsanti Proporzioni,
-/// Impostazioni (tracce) e — per le serie — Episodi ed Episodio successivo.
+/// immersivo, con controlli personalizzati (auto-hide che si resetta a ogni
+/// tocco), Proporzioni, Impostazioni (tracce) e — per le serie — Episodi ed
+/// Episodio successivo.
 class PlayerScreen extends StatefulWidget {
   final String url;
   final String title;
@@ -72,6 +73,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _aspectLabelVisible = false;
   Timer? _aspectLabelTimer;
 
+  // Visibilità controlli (auto-hide che si resetta a ogni interazione).
+  bool _controlsVisible = true;
+  Timer? _hideTimer;
+  double? _dragValue;
+  double _doubleTapX = 0;
+
   bool get _isSeries =>
       widget.series != null &&
       widget.episodes != null &&
@@ -95,6 +102,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _resumeFrom = widget.initialPosition;
     _pos = widget.initialPosition;
     _open();
+    _resetHideTimer();
 
     _subs.add(_player.stream.position.listen((p) {
       if (_wantsResume && !_seeked) return;
@@ -132,6 +140,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
+  // --- Visibilità controlli ---
+  void _resetHideTimer() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _controlsVisible = false);
+    });
+  }
+
+  void _showControls() {
+    if (!_controlsVisible) setState(() => _controlsVisible = true);
+    _resetHideTimer();
+  }
+
+  void _toggleControls() {
+    if (_controlsVisible) {
+      _hideTimer?.cancel();
+      setState(() => _controlsVisible = false);
+    } else {
+      _showControls();
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (_isLive) {
+      _showControls();
+      return;
+    }
+    final width = MediaQuery.of(context).size.width;
+    final pos = _player.state.position;
+    final target = _doubleTapX < width / 2
+        ? pos - const Duration(seconds: 10)
+        : pos + const Duration(seconds: 10);
+    _player.seek(target < Duration.zero ? Duration.zero : target);
+    _showControls();
+  }
+
   void _switchEpisode(int i) {
     final eps = widget.episodes;
     final series = widget.series;
@@ -149,6 +193,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
     _open();
     _record();
+    _showControls();
   }
 
   void _playNext() {
@@ -160,10 +205,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     _saveTimer?.cancel();
+    _hideTimer?.cancel();
+    _aspectLabelTimer?.cancel();
     for (final s in _subs) {
       s.cancel();
     }
-    _aspectLabelTimer?.cancel();
     if (_resume != null) _record();
     _player.dispose();
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
@@ -171,9 +217,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.dispose();
   }
 
-  // --- Menu / overlay ---
-
-  // Cambia ciclicamente le proporzioni e mostra l'etichetta transitoria.
+  // --- Proporzioni: ciclo + etichetta transitoria ---
   void _cycleAspect() {
     _aspectIndex = (_aspectIndex + 1) % _aspectModes.length;
     final m = _aspectModes[_aspectIndex];
@@ -189,6 +233,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
+  // --- Tracce (audio / sottotitoli / qualità) ---
   void _showTracks() {
     showModalBottomSheet<void>(
       context: context,
@@ -307,16 +352,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return _label(t.id, t.title, t.language);
   }
 
-  // Pulsante del footer con icona + etichetta.
+  String _fmtDur(Duration d) {
+    final h = d.inHours;
+    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  // --- UI controlli ---
   Widget _footerButton(IconData icon, String label, VoidCallback onPressed) {
     return InkWell(
-      onTap: onPressed,
+      onTap: () {
+        onPressed();
+        _resetHideTimer();
+      },
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: Colors.white, size: 24),
             const SizedBox(height: 2),
@@ -328,61 +382,81 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  MaterialVideoControlsThemeData _controlsTheme() {
-    return MaterialVideoControlsThemeData(
-      seekOnDoubleTap: true,
-      // Seek bar integrata disattivata: la ricostruiamo noi con i tempi ai lati.
-      displaySeekBar: false,
-      seekBarMargin: EdgeInsets.zero,
-      buttonBarHeight: 96,
-      bottomButtonBarMargin:
-          const EdgeInsets.only(left: 12, right: 12, bottom: 16),
-      topButtonBarMargin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      // In alto resta solo Indietro (+ titolo).
-      topButtonBar: [
-        MaterialCustomButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        Expanded(
-          child: Text(
-            _title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
-      // Footer su due righe: [tempo — seek bar — tempo] e poi i pulsanti azione.
-      bottomButtonBar: [
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _seekRow(),
-              const SizedBox(height: 6),
-              _buttonsRow(),
-            ],
-          ),
-        ),
-      ],
+  Widget _centerControls() {
+    return StreamBuilder<bool>(
+      stream: _player.stream.buffering,
+      initialData: false,
+      builder: (_, buf) {
+        if (buf.data ?? false) {
+          return const CircularProgressIndicator(color: Colors.white);
+        }
+        return StreamBuilder<bool>(
+          stream: _player.stream.playing,
+          initialData: _player.state.playing,
+          builder: (_, snap) {
+            final playing = snap.data ?? false;
+            return IconButton(
+              iconSize: 64,
+              color: Colors.white,
+              icon: Icon(playing
+                  ? Icons.pause_circle_filled
+                  : Icons.play_circle_fill),
+              onPressed: () {
+                _player.playOrPause();
+                _resetHideTimer();
+              },
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _seekRow() {
     if (_isLive) {
-      return const Row(children: [Expanded(child: MaterialSeekBar())]);
+      return const Row(
+        children: [
+          Icon(Icons.circle, color: Colors.red, size: 10),
+          SizedBox(width: 6),
+          Text('IN DIRETTA',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold)),
+        ],
+      );
     }
-    return Row(
-      children: [
-        _timeText(_player.stream.position, _player.state.position),
-        const SizedBox(width: 8),
-        const Expanded(child: MaterialSeekBar()),
-        const SizedBox(width: 8),
-        _timeText(_player.stream.duration, _player.state.duration),
-      ],
+    const style = TextStyle(color: Colors.white, fontSize: 12);
+    return StreamBuilder<Duration>(
+      stream: _player.stream.position,
+      initialData: _player.state.position,
+      builder: (_, snap) {
+        final dur = _player.state.duration;
+        final maxMs = dur.inMilliseconds > 0 ? dur.inMilliseconds.toDouble() : 1.0;
+        final posMs = (snap.data ?? Duration.zero).inMilliseconds.toDouble();
+        final value = (_dragValue ?? posMs).clamp(0.0, maxMs).toDouble();
+        return Row(
+          children: [
+            Text(_fmtDur(Duration(milliseconds: value.toInt())), style: style),
+            Expanded(
+              child: Slider(
+                value: value,
+                max: maxMs,
+                activeColor: Colors.red,
+                inactiveColor: Colors.white24,
+                onChangeStart: (_) => _hideTimer?.cancel(),
+                onChanged: (v) => setState(() => _dragValue = v),
+                onChangeEnd: (v) {
+                  _player.seek(Duration(milliseconds: v.toInt()));
+                  setState(() => _dragValue = null);
+                  _resetHideTimer();
+                },
+              ),
+            ),
+            Text(_fmtDur(dur), style: style),
+          ],
+        );
+      },
     );
   }
 
@@ -400,44 +474,114 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  Widget _timeText(Stream<Duration> stream, Duration initial) {
-    return StreamBuilder<Duration>(
-      stream: stream,
-      initialData: initial,
-      builder: (_, snap) => Text(
-        _fmtDur(snap.data ?? Duration.zero),
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
+  Widget _controlsOverlay() {
+    return Stack(
+      children: [
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x99000000),
+                  Color(0x00000000),
+                  Color(0x00000000),
+                  Color(0xCC000000),
+                ],
+                stops: [0.0, 0.25, 0.6, 1.0],
+              ),
+            ),
+          ),
+        ),
+        // Barra superiore: Indietro + titolo.
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Play/Pausa al centro.
+        Center(child: _centerControls()),
+        // Barra inferiore: tempi + seek bar, poi i pulsanti azione.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _seekRow(),
+                  _buttonsRow(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
-  }
-
-  String _fmtDur(Duration d) {
-    final h = d.inHours;
-    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = _controlsTheme();
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
           Positioned.fill(
-            child: MaterialVideoControlsTheme(
-              normal: theme,
-              fullscreen: theme,
-              child: Video(
-                controller: _controller,
-                controls: MaterialVideoControls,
-                fit: _fit,
-                aspectRatio: _aspectRatio,
+            child: Video(
+              controller: _controller,
+              controls: NoVideoControls,
+              fit: _fit,
+              aspectRatio: _aspectRatio,
+            ),
+          ),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleControls,
+              onDoubleTapDown: (d) => _doubleTapX = d.localPosition.dx,
+              onDoubleTap: _handleDoubleTap,
+              child: AnimatedOpacity(
+                opacity: _controlsVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: !_controlsVisible,
+                  child: _controlsOverlay(),
+                ),
               ),
             ),
           ),
-          // Etichetta transitoria delle proporzioni (appare e svanisce).
+          // Etichetta transitoria delle proporzioni.
           IgnorePointer(
             child: Center(
               child: AnimatedOpacity(
