@@ -24,6 +24,9 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   final CatalogRepository _repo = CatalogRepository.instance;
 
+  // Stagione selezionata nell'elenco episodi (null = usa la prima disponibile).
+  int? _selectedSeason;
+
   bool get _isMovie => widget.movie != null;
   String get _title => _isMovie ? widget.movie!.name : widget.series!.name;
   String get _poster => _isMovie ? widget.movie!.icon : widget.series!.cover;
@@ -236,11 +239,20 @@ class _DetailScreenState extends State<DetailScreen> {
           }
           final info = snap.data ?? XtSeriesInfo.empty;
           final eps = info.episodes;
+          final seasons = info.seasons;
+          final selected =
+              _selectedSeason ?? (seasons.isNotEmpty ? seasons.first : 0);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _actions(
-                onPlay: eps.isEmpty ? null : () => _playEpisode(eps, 0),
+                onPlay: eps.isEmpty
+                    ? null
+                    : () {
+                        final first =
+                            eps.indexWhere((x) => x.season == selected);
+                        _playEpisode(eps, first >= 0 ? first : 0);
+                      },
               ),
               _plotAndMeta(info.plot, const []),
               if (eps.isEmpty)
@@ -249,6 +261,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   child: Text('Nessun episodio'),
                 )
               else ...[
+                if (seasons.length > 1) _seasonChips(seasons, selected),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
                   child: Text('Episodi',
@@ -256,17 +269,107 @@ class _DetailScreenState extends State<DetailScreen> {
                           fontSize: 17, fontWeight: FontWeight.bold)),
                 ),
                 for (var i = 0; i < eps.length; i++)
-                  ListTile(
-                    leading: const Icon(Icons.play_circle_outline),
-                    title: Text(eps[i].title),
-                    onTap: () => _playEpisode(eps, i),
-                  ),
+                  if (eps[i].season == selected) _episodeRow(eps, i),
               ],
             ],
           );
         },
       ),
     ];
+  }
+
+  // Chip orizzontali per scegliere la stagione (quello attivo in rosso).
+  Widget _seasonChips(List<int> seasons, int selected) {
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          for (final s in seasons)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: ChoiceChip(
+                label: Text(seasonLabel(s)),
+                selected: s == selected,
+                onSelected: (_) => setState(() => _selectedSeason = s),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Riga episodio: copertina 16:9 + titolo + "Ep. N · durata" + sinossi.
+  Widget _episodeRow(List<XtEpisode> eps, int i) {
+    final e = eps[i];
+    final img = e.image.isNotEmpty ? e.image : _poster;
+    final meta = [
+      if (e.episodeNum > 0) 'Ep. ${e.episodeNum}',
+      if (e.duration.isNotEmpty) e.duration,
+    ].join('  ·  ');
+    return InkWell(
+      onTap: () => _playEpisode(eps, i),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                width: 130,
+                height: 73,
+                child: img.isEmpty
+                    ? Container(
+                        color: Colors.white10,
+                        child: const Icon(Icons.play_circle_outline,
+                            color: Colors.white24))
+                    : CachedNetworkImage(
+                        imageUrl: img,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) =>
+                            Container(color: Colors.white10),
+                        errorWidget: (_, _, _) => Container(
+                            color: Colors.white10,
+                            child: const Icon(Icons.play_circle_outline,
+                                color: Colors.white24)),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(e.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600)),
+                  if (meta.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(meta,
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 12)),
+                    ),
+                  if (e.plot.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(e.plot,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white54, height: 1.3)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _plotAndMeta(String plot, List<String> meta) {

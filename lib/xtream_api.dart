@@ -160,12 +160,24 @@ class XtreamApi implements CatalogSource {
     if (data is Map) {
       final info = data['info'];
       if (info is Map) plot = '${info['plot'] ?? ''}';
-      if (data['episodes'] is Map) {
-        for (final season in (data['episodes'] as Map).values) {
-          if (season is List) {
-            for (final e in season) {
+      final byseason = data['episodes'];
+      if (byseason is Map) {
+        // La chiave della mappa è il numero di stagione (più affidabile del
+        // campo per-episodio): la usiamo per popolare XtEpisode.season.
+        // Ordiniamo le chiavi come interi per evitare l'ordine lessicografico
+        // ("10" prima di "2"); l'ordine intra-stagione dell'API è preservato.
+        final keys = byseason.keys.toList()
+          ..sort((a, b) =>
+              (int.tryParse('$a') ?? 0).compareTo(int.tryParse('$b') ?? 0));
+        for (final key in keys) {
+          final seasonNum = int.tryParse('$key') ?? 0;
+          final list = byseason[key];
+          if (list is List) {
+            for (final e in list) {
               if (e is Map) {
-                episodes.add(XtEpisode.fromJson(e.cast<String, dynamic>()));
+                final ep = XtEpisode.fromJson(e.cast<String, dynamic>());
+                episodes
+                    .add(seasonNum > 0 ? ep.copyWith(season: seasonNum) : ep);
               }
             }
           }

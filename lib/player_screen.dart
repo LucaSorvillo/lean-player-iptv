@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -302,34 +303,95 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _showEpisodes() {
     final eps = widget.episodes;
-    if (eps == null) return;
+    if (eps == null || eps.isEmpty) return;
+    final seasons = (<int>{for (final e in eps) e.season}.toList())..sort();
+    final curIdx =
+        (_episodeIndex >= 0 && _episodeIndex < eps.length) ? _episodeIndex : 0;
+    var sheetSeason = eps[curIdx].season; // parte dalla stagione in corso
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF161616),
       isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: eps.length,
-          itemBuilder: (ctx, i) {
-            final ep = eps[i];
-            final current = i == _episodeIndex;
-            return ListTile(
-              leading: Icon(
-                current ? Icons.play_arrow : Icons.play_circle_outline,
-                color: current ? Colors.red : Colors.white70,
+        child: StatefulBuilder(
+          builder: (ctx, setSheet) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (seasons.length > 1)
+                SizedBox(
+                  height: 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: [
+                      for (final s in seasons)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 8),
+                          child: ChoiceChip(
+                            label: Text(seasonLabel(s)),
+                            selected: s == sheetSeason,
+                            onSelected: (_) => setSheet(() => sheetSeason = s),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (var i = 0; i < eps.length; i++)
+                      if (eps[i].season == sheetSeason)
+                        _episodeSheetTile(ctx, eps, i),
+                  ],
+                ),
               ),
-              title: Text(ep.title,
-                  style:
-                      TextStyle(color: current ? Colors.red : Colors.white)),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _switchEpisode(i);
-              },
-            );
-          },
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  // Voce episodio nell'overlay: copertina + titolo (rosso se in corso).
+  Widget _episodeSheetTile(BuildContext ctx, List<XtEpisode> eps, int i) {
+    final e = eps[i];
+    final current = i == _episodeIndex;
+    final img = e.image.isNotEmpty ? e.image : (widget.series?.cover ?? '');
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 92,
+          height: 52,
+          child: img.isEmpty
+              ? Container(
+                  color: Colors.white10,
+                  child: Icon(
+                      current ? Icons.play_arrow : Icons.play_circle_outline,
+                      color: current ? Colors.red : Colors.white70))
+              : CachedNetworkImage(
+                  imageUrl: img,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(color: Colors.white10),
+                  errorWidget: (_, _, _) => Container(color: Colors.white10),
+                ),
+        ),
+      ),
+      title: Text(e.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: current ? Colors.red : Colors.white)),
+      subtitle: e.episodeNum > 0
+          ? Text('Ep. ${e.episodeNum}',
+              style: const TextStyle(color: Colors.white54))
+          : null,
+      onTap: () {
+        Navigator.of(ctx).pop();
+        _switchEpisode(i);
+      },
     );
   }
 

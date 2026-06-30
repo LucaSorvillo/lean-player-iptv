@@ -124,20 +124,72 @@ class XtEpisode {
   final String id;
   final String title;
   final String ext;
+  final int season; // 0 = sconosciuta / contenuti speciali
+  final int episodeNum; // 0 = sconosciuto
+  final String image; // copertina episodio; '' = assente
+  final String duration; // es. "00:42:10"
+  final String plot; // sinossi breve
 
-  const XtEpisode({required this.id, required this.title, required this.ext});
+  const XtEpisode({
+    required this.id,
+    required this.title,
+    required this.ext,
+    this.season = 0,
+    this.episodeNum = 0,
+    this.image = '',
+    this.duration = '',
+    this.plot = '',
+  });
 
-  factory XtEpisode.fromJson(Map<String, dynamic> j) => XtEpisode(
-        id: '${j['id']}',
-        title: '${j['title'] ?? 'Episodio'}',
-        ext: '${j['container_extension'] ?? 'mp4'}',
+  // Gestisce due forme: la risposta API (campi ricchi annidati in `info`) e il
+  // JSON salvato da `toJson` per il "continua a guardare" (chiavi piatte).
+  factory XtEpisode.fromJson(Map<String, dynamic> j) {
+    final info = j['info'];
+    final im =
+        info is Map ? info.cast<String, dynamic>() : const <String, dynamic>{};
+    return XtEpisode(
+      id: '${j['id']}',
+      title: '${j['title'] ?? 'Episodio'}',
+      ext: '${j['container_extension'] ?? 'mp4'}',
+      season: int.tryParse('${j['season'] ?? im['season'] ?? 0}') ?? 0,
+      episodeNum: int.tryParse('${j['episode_num'] ?? 0}') ?? 0,
+      image: _firstNonEmpty(
+          [j['image'], im['movie_image'], im['cover_big'], im['cover']]),
+      duration: '${j['duration'] ?? im['duration'] ?? ''}',
+      plot: '${j['plot'] ?? im['plot'] ?? im['overview'] ?? ''}',
+    );
+  }
+
+  XtEpisode copyWith({int? season}) => XtEpisode(
+        id: id,
+        title: title,
+        ext: ext,
+        season: season ?? this.season,
+        episodeNum: episodeNum,
+        image: image,
+        duration: duration,
+        plot: plot,
       );
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'container_extension': ext,
+        'season': season,
+        'episode_num': episodeNum,
+        if (image.isNotEmpty) 'image': image,
+        if (duration.isNotEmpty) 'duration': duration,
+        if (plot.isNotEmpty) 'plot': plot,
       };
+}
+
+/// Prima stringa non vuota della lista (scarta `null` e "null"); '' se nessuna.
+String _firstNonEmpty(List<dynamic> vals) {
+  for (final v in vals) {
+    final s = '${v ?? ''}'.trim();
+    if (s.isNotEmpty && s != 'null') return s;
+  }
+  return '';
 }
 
 /// Dettagli di un film (da `get_vod_info` → `info`).
@@ -175,7 +227,16 @@ class XtSeriesInfo {
   const XtSeriesInfo({this.plot = '', this.episodes = const []});
 
   static const XtSeriesInfo empty = XtSeriesInfo();
+
+  /// Numeri di stagione presenti, ordinati crescenti.
+  List<int> get seasons {
+    final s = <int>{for (final e in episodes) e.season}.toList()..sort();
+    return s;
+  }
 }
+
+/// Etichetta leggibile di una stagione (0 = contenuti speciali).
+String seasonLabel(int s) => s == 0 ? 'Speciali' : 'Stagione $s';
 
 /// Decodifica un campo Xtream che di norma è base64 (titoli/descrizioni EPG).
 /// Se non è base64 valido, restituisce la stringa così com'è.
