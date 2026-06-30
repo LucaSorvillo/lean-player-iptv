@@ -305,6 +305,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return _label(t.id, t.title, t.language);
   }
 
+  // Pulsante del footer con icona + etichetta.
+  Widget _footerButton(IconData icon, String label, VoidCallback onPressed) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            const SizedBox(height: 2),
+            Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
   MaterialVideoControlsThemeData _controlsTheme() {
     return MaterialVideoControlsThemeData(
       seekOnDoubleTap: true,
@@ -328,28 +349,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
         ),
       ],
-      // Tutti gli altri pulsanti nel footer, sotto la seek bar.
+      // Pulsanti nel footer, distribuiti su tutta la larghezza, con etichetta.
       bottomButtonBar: [
         const MaterialPositionIndicator(),
         const Spacer(),
-        MaterialCustomButton(
-          icon: const Icon(Icons.aspect_ratio),
-          onPressed: _cycleAspect,
-        ),
-        MaterialCustomButton(
-          icon: const Icon(Icons.tune),
-          onPressed: _showTracks,
-        ),
-        if (_isSeries)
-          MaterialCustomButton(
-            icon: const Icon(Icons.video_library),
-            onPressed: _showEpisodes,
-          ),
-        if (_isSeries)
-          MaterialCustomButton(
-            icon: const Icon(Icons.skip_next),
-            onPressed: _playNext,
-          ),
+        _footerButton(Icons.aspect_ratio, 'Proporzioni', _cycleAspect),
+        const Spacer(),
+        _footerButton(Icons.tune, 'Impostazioni', _showTracks),
+        if (_isSeries) ...[
+          const Spacer(),
+          _footerButton(Icons.video_library, 'Episodi', _showEpisodes),
+          const Spacer(),
+          _footerButton(Icons.skip_next, 'Successivo', _playNext),
+        ],
       ],
     );
   }
