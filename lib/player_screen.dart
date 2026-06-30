@@ -77,6 +77,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       widget.episodes != null &&
       widget.episodes!.isNotEmpty;
 
+  bool get _isLive => widget.resume?.type == 'live';
+
   bool get _wantsResume =>
       _resumeFrom > Duration.zero && _resume?.type != 'live';
 
@@ -329,9 +331,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   MaterialVideoControlsThemeData _controlsTheme() {
     return MaterialVideoControlsThemeData(
       seekOnDoubleTap: true,
-      seekBarMargin: const EdgeInsets.only(left: 16, right: 16, bottom: 72),
+      // Seek bar integrata disattivata: la ricostruiamo noi con i tempi ai lati.
+      displaySeekBar: false,
+      seekBarMargin: EdgeInsets.zero,
+      buttonBarHeight: 96,
       bottomButtonBarMargin:
-          const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+          const EdgeInsets.only(left: 12, right: 12, bottom: 16),
       topButtonBarMargin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       // In alto resta solo Indietro (+ titolo).
       topButtonBar: [
@@ -349,21 +354,68 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
         ),
       ],
-      // Pulsanti nel footer, distribuiti su tutta la larghezza, con etichetta.
+      // Footer su due righe: [tempo — seek bar — tempo] e poi i pulsanti azione.
       bottomButtonBar: [
-        const MaterialPositionIndicator(),
-        const Spacer(),
-        _footerButton(Icons.aspect_ratio, 'Proporzioni', _cycleAspect),
-        const Spacer(),
-        _footerButton(Icons.tune, 'Impostazioni', _showTracks),
-        if (_isSeries) ...[
-          const Spacer(),
-          _footerButton(Icons.video_library, 'Episodi', _showEpisodes),
-          const Spacer(),
-          _footerButton(Icons.skip_next, 'Successivo', _playNext),
-        ],
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _seekRow(),
+              const SizedBox(height: 6),
+              _buttonsRow(),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  Widget _seekRow() {
+    if (_isLive) {
+      return const Row(children: [Expanded(child: MaterialSeekBar())]);
+    }
+    return Row(
+      children: [
+        _timeText(_player.stream.position, _player.state.position),
+        const SizedBox(width: 8),
+        const Expanded(child: MaterialSeekBar()),
+        const SizedBox(width: 8),
+        _timeText(_player.stream.duration, _player.state.duration),
+      ],
+    );
+  }
+
+  Widget _buttonsRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _footerButton(Icons.aspect_ratio, 'Proporzioni', _cycleAspect),
+        _footerButton(Icons.tune, 'Impostazioni', _showTracks),
+        if (_isSeries)
+          _footerButton(Icons.video_library, 'Episodi', _showEpisodes),
+        if (_isSeries)
+          _footerButton(Icons.skip_next, 'Successivo', _playNext),
+      ],
+    );
+  }
+
+  Widget _timeText(Stream<Duration> stream, Duration initial) {
+    return StreamBuilder<Duration>(
+      stream: stream,
+      initialData: initial,
+      builder: (_, snap) => Text(
+        _fmtDur(snap.data ?? Duration.zero),
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
+    );
+  }
+
+  String _fmtDur(Duration d) {
+    final h = d.inHours;
+    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
   @override
