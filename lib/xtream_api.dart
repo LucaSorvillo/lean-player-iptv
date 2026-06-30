@@ -214,18 +214,40 @@ class XtreamApi implements CatalogSource {
       } catch (_) {
         continue; // prova il fallback
       }
-      final listings = (data is Map) ? data['epg_listings'] : null;
-      if (listings is List && listings.isNotEmpty) {
-        final out = listings
-            .whereType<Map>()
-            .map((e) => XtEpg.fromJson(e.cast<String, dynamic>()))
-            .toList()
-          ..sort((a, b) =>
-              (a.start ?? DateTime(1970)).compareTo(b.start ?? DateTime(1970)));
-        if (out.isNotEmpty) return out;
-      }
+      final out = _epgListFrom(data);
+      if (out.isNotEmpty) return out;
     }
     return [];
+  }
+
+  @override
+  Future<List<XtEpg>> fullEpg(String streamId) async {
+    // get_simple_data_table = palinsesto completo del canale (giornata o più).
+    try {
+      final data = await _getJson(_api({
+        'action': 'get_simple_data_table',
+        'stream_id': streamId,
+      }));
+      final out = _epgListFrom(data);
+      if (out.isNotEmpty) return out;
+    } catch (_) {
+      // in caso di errore si ricade sul palinsesto breve
+    }
+    return shortEpg(streamId, limit: 50);
+  }
+
+  /// Estrae e ordina per orario la lista `epg_listings` da una risposta EPG.
+  List<XtEpg> _epgListFrom(dynamic data) {
+    final listings = (data is Map) ? data['epg_listings'] : null;
+    if (listings is List && listings.isNotEmpty) {
+      return listings
+          .whereType<Map>()
+          .map((e) => XtEpg.fromJson(e.cast<String, dynamic>()))
+          .toList()
+        ..sort((a, b) =>
+            (a.start ?? DateTime(1970)).compareTo(b.start ?? DateTime(1970)));
+    }
+    return const [];
   }
 
   // --- URL di streaming (primo hop; il server fa redirect 302 + token) ---

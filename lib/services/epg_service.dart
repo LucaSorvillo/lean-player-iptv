@@ -23,6 +23,12 @@ class EpgService {
   final Map<String, Future<List<XtEpg>>> _inflight = {};
   static const _ttl = Duration(minutes: 10);
 
+  // Cache separata per il palinsesto completo (TTL più lungo: cambia di rado).
+  final Map<String, List<XtEpg>> _fullCache = {};
+  final Map<String, DateTime> _fullFetchedAt = {};
+  final Map<String, Future<List<XtEpg>>> _fullInflight = {};
+  static const _fullTtl = Duration(minutes: 30);
+
   Future<List<XtEpg>> _listing(String streamId) {
     final at = _fetchedAt[streamId];
     if (at != null &&
@@ -45,11 +51,35 @@ class EpgService {
   /// Lista (in cache) dei programmi del canale: il corrente + i successivi.
   Future<List<XtEpg>> listing(String streamId) => _listing(streamId);
 
+  /// Palinsesto completo del canale (cache separata, TTL più lungo). Usato
+  /// dalla guida programmi.
+  Future<List<XtEpg>> fullListing(String streamId) {
+    final at = _fullFetchedAt[streamId];
+    if (at != null &&
+        _fullCache.containsKey(streamId) &&
+        DateTime.now().difference(at) < _fullTtl) {
+      return Future.value(_fullCache[streamId]!);
+    }
+    return _fullInflight[streamId] ??=
+        CatalogRepository.instance.fullEpg(streamId).then((list) {
+      _fullCache[streamId] = list;
+      _fullFetchedAt[streamId] = DateTime.now();
+      _fullInflight.remove(streamId);
+      return list;
+    }).catchError((Object e) {
+      _fullInflight.remove(streamId);
+      throw e;
+    });
+  }
+
   /// Svuota la cache EPG (es. dopo un cambio di sorgente/impostazioni).
   void clear() {
     _cache.clear();
     _fetchedAt.clear();
     _inflight.clear();
+    _fullCache.clear();
+    _fullFetchedAt.clear();
+    _fullInflight.clear();
   }
 
   /// "Ora in onda" + "a seguire" per un canale (lista vuota → entrambi null).

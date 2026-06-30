@@ -77,6 +77,8 @@ class CatalogRepository {
   Future<List<XtEpg>> shortEpg(String streamId, {int limit = 2}) =>
       _source.shortEpg(streamId, limit: limit);
 
+  Future<List<XtEpg>> fullEpg(String streamId) => _source.fullEpg(streamId);
+
   String liveUrl(XtLive c) => _source.liveUrl(c);
   String vodUrl(XtVod v) => _source.vodUrl(v);
   String episodeUrl(XtEpisode e) => _source.episodeUrl(e);

@@ -288,9 +288,13 @@ class XtEpg {
   }
 
   /// Orario "HH:MM" di inizio, vuoto se assente.
-  String get startHHmm {
-    final s = start;
-    if (s == null) return '';
-    return '${s.hour.toString().padLeft(2, '0')}:${s.minute.toString().padLeft(2, '0')}';
+  String get startHHmm => _hhmm(start);
+
+  /// Orario "HH:MM" di fine, vuoto se assente.
+  String get endHHmm => _hhmm(end);
+
+  static String _hhmm(DateTime? d) {
+    if (d == null) return '';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 }

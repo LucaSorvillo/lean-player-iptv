@@ -193,12 +193,127 @@ class _LiveTileState extends State<LiveTile> {
                 );
               },
             ),
-      trailing: FavStar(
-        isFav: () =>
-            FavoritesStore.instance.isLiveFav(widget.channel.streamId),
-        onToggle: () => FavoritesStore.instance.toggleLive(widget.channel),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.showEpg)
+            IconButton(
+              icon: const Icon(Icons.event_note),
+              tooltip: 'Guida programmi',
+              onPressed: _showGuide,
+            ),
+          FavStar(
+            isFav: () =>
+                FavoritesStore.instance.isLiveFav(widget.channel.streamId),
+            onToggle: () => FavoritesStore.instance.toggleLive(widget.channel),
+          ),
+        ],
       ),
       onTap: widget.onPlay,
+    );
+  }
+
+  // Guida programmi: palinsesto completo del canale in un bottom sheet.
+  void _showGuide() {
+    final streamId = widget.channel.streamId;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      isScrollControlled: true,
+      builder: (ctx) {
+        var future = EpgService.instance.fullListing(streamId);
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (ctx, setSheet) => FractionallySizedBox(
+              heightFactor: 0.78,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_note, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.channel.name,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: FutureBuilder<List<XtEpg>>(
+                      future: future,
+                      builder: (context, snap) {
+                        if (snap.connectionState != ConnectionState.done) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+                        if (snap.hasError) {
+                          return ErrorRetry(
+                            message: 'Guida non disponibile.',
+                            onRetry: () => setSheet(() => future =
+                                EpgService.instance.fullListing(streamId)),
+                          );
+                        }
+                        final list = snap.data ?? const <XtEpg>[];
+                        if (list.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                  'Nessuna guida disponibile per questo canale.'),
+                            ),
+                          );
+                        }
+                        return ListView.builder(
+                          itemCount: list.length,
+                          itemBuilder: (ctx, i) => _guideRow(list[i]),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Riga di palinsesto: orario, titolo (grassetto/rosso se in onda), descrizione.
+  Widget _guideRow(XtEpg e) {
+    final now = e.isNow;
+    final color = now ? Colors.red : Colors.white;
+    return ListTile(
+      dense: true,
+      leading: Text(
+        e.startHHmm,
+        style: TextStyle(
+          color: now ? Colors.red : Colors.white70,
+          fontWeight: now ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      title: Text(
+        e.title.isEmpty ? 'Programma' : e.title,
+        style: TextStyle(
+            color: color, fontWeight: now ? FontWeight.bold : FontWeight.w500),
+      ),
+      subtitle: e.description.isEmpty
+          ? null
+          : Text(
+              e.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white54),
+            ),
     );
   }
 }

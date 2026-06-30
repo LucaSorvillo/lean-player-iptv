@@ -154,6 +154,8 @@ class M3uSource implements CatalogSource {
   @override
   Future<List<XtEpg>> shortEpg(String streamId, {int limit = 2}) async =>
       const <XtEpg>[];
+  @override
+  Future<List<XtEpg>> fullEpg(String streamId) async => const <XtEpg>[];
 
   @override
   String liveUrl(XtLive c) => c.url;

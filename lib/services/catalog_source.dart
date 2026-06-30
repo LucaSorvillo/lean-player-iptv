@@ -20,6 +20,9 @@ abstract class CatalogSource {
   Future<XtVodInfo> vodInfo(String streamId);
   Future<List<XtEpg>> shortEpg(String streamId, {int limit});
 
+  /// Palinsesto completo del canale (tutta la giornata, a volte più giorni).
+  Future<List<XtEpg>> fullEpg(String streamId);
+
   /// URL riproducibile dell'elemento (Xtream lo costruisce; M3U è diretto).
   String liveUrl(XtLive c);
   String vodUrl(XtVod v);
