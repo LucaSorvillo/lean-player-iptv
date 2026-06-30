@@ -10,6 +10,7 @@ import 'package:screen_brightness/screen_brightness.dart';
 
 import 'models.dart';
 import 'services/catalog_repository.dart';
+import 'services/connectivity_service.dart';
 import 'services/continue_watching_store.dart';
 import 'services/settings_store.dart';
 
@@ -85,6 +86,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // Barre verticali laterali (luminosità sx / volume dx), visibili coi controlli.
   double _brightness = 0.5; // luminosità schermo (0..1)
   double _volume = 0.5; // volume di SISTEMA (0..1)
+  double? _initialVolume; // volume di sistema all'apertura, per ripristinarlo
 
   bool get _isSeries =>
       widget.series != null &&
@@ -196,6 +198,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await FlutterVolumeController.updateShowSystemUI(false);
       final v = await FlutterVolumeController.getVolume();
       if (v != null) _volume = v;
+      _initialVolume = _volume; // memorizzato per ripristinarlo all'uscita
       // Tiene la barra in sync coi tasti fisici / Control Center.
       FlutterVolumeController.addListener(
         (vol) {
@@ -246,6 +249,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_resume != null) _record();
     _player.dispose();
     FlutterVolumeController.removeListener();
+    // Ripristina il volume di sistema com'era prima di aprire il player.
+    if (_initialVolume != null) FlutterVolumeController.setVolume(_initialVolume!);
     FlutterVolumeController.updateShowSystemUI(true);
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -582,7 +587,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       children: [
         SizedBox(
           width: 40,
-          height: 190,
+          height: 130,
           child: RotatedBox(
             quarterTurns: 3,
             child: SliderTheme(
@@ -637,34 +642,41 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
           ),
         ),
-        // Barre verticali laterali: luminosità (sx) e volume di sistema (dx).
+        // Barre verticali: luminosità (sx) e volume di sistema (dx), in alto e
+        // verso il centro, dentro la safe area (sempre toccabili su iPhone).
         Positioned(
-          left: 12,
           top: 0,
-          bottom: 0,
-          child: Center(
-            child: _levelBar(
-              icon: _brightnessIcon(_brightness),
-              value: _brightness,
-              onChanged: (v) {
-                setState(() => _brightness = v);
-                ScreenBrightness().setApplicationScreenBrightness(v);
-              },
-            ),
-          ),
-        ),
-        Positioned(
-          right: 12,
-          top: 0,
-          bottom: 0,
-          child: Center(
-            child: _levelBar(
-              icon: _volumeIcon(_volume),
-              value: _volume,
-              onChanged: (v) {
-                setState(() => _volume = v);
-                FlutterVolumeController.setVolume(v);
-              },
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: 52,
+                left: MediaQuery.of(context).size.width * 0.18,
+                right: MediaQuery.of(context).size.width * 0.18,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _levelBar(
+                    icon: _brightnessIcon(_brightness),
+                    value: _brightness,
+                    onChanged: (v) {
+                      setState(() => _brightness = v);
+                      ScreenBrightness().setApplicationScreenBrightness(v);
+                    },
+                  ),
+                  _levelBar(
+                    icon: _volumeIcon(_volume),
+                    value: _volume,
+                    onChanged: (v) {
+                      setState(() => _volume = v);
+                      FlutterVolumeController.setVolume(v);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -776,6 +788,47 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         fontWeight: FontWeight.bold),
                   ),
                 ),
+              ),
+            ),
+          ),
+          // Banner "Sei offline": sempre visibile (fuori dall'auto-hide dei controlli).
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: ListenableBuilder(
+                listenable: ConnectivityService.instance,
+                builder: (context, _) {
+                  if (ConnectivityService.instance.isOnline) {
+                    return const SizedBox.shrink();
+                  }
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB00020),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.cloud_off,
+                                size: 16, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text('Sei offline',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
