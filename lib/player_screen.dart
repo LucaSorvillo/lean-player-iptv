@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 
 import 'models.dart';
 import 'services/catalog_repository.dart';
@@ -80,6 +81,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double? _dragValue;
   double _doubleTapX = 0;
 
+  // Swipe verticale: volume (metà destra) e luminosità (metà sinistra), con
+  // overlay transitorio (stesso pattern dell'etichetta proporzioni).
+  bool _dragIsVolume = false;
+  double _gestureValue = 0; // 0..1 mostrato nell'overlay
+  bool _gestureVisible = false;
+  IconData _gestureIcon = Icons.volume_up;
+  Timer? _gestureTimer;
+  double _appBrightness = 0.5; // luminosità app corrente (0..1)
+
   bool get _isSeries =>
       widget.series != null &&
       widget.episodes != null &&
@@ -98,6 +108,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _initBrightness();
 
     _resume = widget.resume;
     _resumeFrom = widget.initialPosition;
@@ -177,6 +188,57 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _showControls();
   }
 
+  // --- Swipe verticale: volume (destra) / luminosità (sinistra) ---
+  Future<void> _initBrightness() async {
+    try {
+      _appBrightness = await ScreenBrightness().application;
+    } catch (_) {
+      // luminosità non leggibile: resta il default
+    }
+  }
+
+  void _onVDragStart(DragStartDetails d) {
+    final width = MediaQuery.of(context).size.width;
+    _dragIsVolume = d.localPosition.dx > width / 2;
+    _gestureTimer?.cancel();
+    setState(() {
+      _gestureValue = _dragIsVolume
+          ? (_player.state.volume / 100).clamp(0.0, 1.0)
+          : _appBrightness.clamp(0.0, 1.0);
+      _gestureIcon = _dragIsVolume ? Icons.volume_up : Icons.brightness_6;
+      _gestureVisible = true;
+    });
+  }
+
+  void _onVDragUpdate(DragUpdateDetails d) {
+    final h = MediaQuery.of(context).size.height;
+    if (h <= 0) return;
+    // Trascinare verso l'alto aumenta (primaryDelta negativo verso l'alto).
+    final v = (_gestureValue - (d.primaryDelta ?? 0) / h).clamp(0.0, 1.0);
+    if (_dragIsVolume) {
+      _player.setVolume(v * 100);
+    } else {
+      _appBrightness = v;
+      ScreenBrightness().setApplicationScreenBrightness(v);
+    }
+    setState(() {
+      _gestureValue = v;
+      if (_dragIsVolume) {
+        _gestureIcon = v <= 0.01
+            ? Icons.volume_off
+            : (v < 0.5 ? Icons.volume_down : Icons.volume_up);
+      }
+      _gestureVisible = true;
+    });
+  }
+
+  void _onVDragEnd(DragEndDetails d) {
+    _gestureTimer?.cancel();
+    _gestureTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _gestureVisible = false);
+    });
+  }
+
   void _switchEpisode(int i) {
     final eps = widget.episodes;
     final series = widget.series;
@@ -208,6 +270,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _saveTimer?.cancel();
     _hideTimer?.cancel();
     _aspectLabelTimer?.cancel();
+    _gestureTimer?.cancel();
     for (final s in _subs) {
       s.cancel();
     }
@@ -215,6 +278,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player.dispose();
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    ScreenBrightness().resetApplicationScreenBrightness();
     super.dispose();
   }
 
@@ -633,6 +697,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               onTap: _toggleControls,
               onDoubleTapDown: (d) => _doubleTapX = d.localPosition.dx,
               onDoubleTap: _handleDoubleTap,
+              onVerticalDragStart: _onVDragStart,
+              onVerticalDragUpdate: _onVDragUpdate,
+              onVerticalDragEnd: _onVDragEnd,
               child: AnimatedOpacity(
                 opacity: _controlsVisible ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 200),
@@ -662,6 +729,43 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Overlay transitorio volume/luminosità (swipe verticale).
+          IgnorePointer(
+            child: Center(
+              child: AnimatedOpacity(
+                opacity: _gestureVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 150),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xB3000000),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_gestureIcon, color: Colors.white, size: 30),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: 150,
+                        child: LinearProgressIndicator(
+                          value: _gestureValue,
+                          minHeight: 4,
+                          color: Colors.white,
+                          backgroundColor: Colors.white24,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('${(_gestureValue * 100).round()}%',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14)),
+                    ],
                   ),
                 ),
               ),
