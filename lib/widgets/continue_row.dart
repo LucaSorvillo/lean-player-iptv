@@ -43,33 +43,56 @@ class ContinueWatchingRow extends StatelessWidget {
     );
   }
 
-  void _resume(BuildContext context, ContinueItem e) {
-    Widget? screen;
+  Future<void> _resume(BuildContext context, ContinueItem e) async {
     if (e.type == 'vod') {
       final v = XtVod.fromJson(e.item);
-      screen = PlayerScreen(
-        url: _repo.vodUrl(v),
-        title: e.name,
-        resume: e.toRef(),
-        initialPosition: Duration(seconds: e.position),
+      _push(
+        context,
+        PlayerScreen(
+          url: _repo.vodUrl(v),
+          title: e.name,
+          resume: e.toRef(),
+          initialPosition: Duration(seconds: e.position),
+        ),
       );
     } else if (e.type == 'series') {
       if (e.episode == null) return;
+      final series = XtSeries.fromJson(e.item);
       final ep = XtEpisode.fromJson(e.episode!);
-      screen = PlayerScreen(
-        url: _repo.episodeUrl(ep),
-        title: ep.title,
-        resume: e.toRef(),
-        initialPosition: Duration(seconds: e.position),
+      // recupera la lista episodi (in cache) per abilitare Episodi/Successivo
+      List<XtEpisode>? eps;
+      var index = 0;
+      try {
+        final info = await _repo.source.seriesInfo(series.seriesId);
+        if (info.episodes.isNotEmpty) {
+          eps = info.episodes;
+          final found = eps.indexWhere((x) => x.id == ep.id);
+          if (found >= 0) index = found;
+        }
+      } catch (_) {}
+      if (!context.mounted) return;
+      _push(
+        context,
+        PlayerScreen(
+          url: _repo.episodeUrl(ep),
+          title: ep.title,
+          resume: e.toRef(),
+          initialPosition: Duration(seconds: e.position),
+          series: series,
+          episodes: eps,
+          episodeIndex: index,
+        ),
       );
     } else {
       final c = XtLive.fromJson(e.item);
-      screen = PlayerScreen(
-        url: _repo.liveUrl(c),
-        title: e.name,
-        resume: e.toRef(),
+      _push(
+        context,
+        PlayerScreen(url: _repo.liveUrl(c), title: e.name, resume: e.toRef()),
       );
     }
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen!));
+  }
+
+  void _push(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 }

@@ -36,8 +36,15 @@ class _DetailScreenState extends State<DetailScreen> {
       ? Future.value(XtSeriesInfo.empty)
       : _repo.source.seriesInfo(widget.series!.seriesId);
 
-  void _play(String url, String title,
-      {ContinueRef? resume, Duration initialPosition = Duration.zero}) {
+  void _play(
+    String url,
+    String title, {
+    ContinueRef? resume,
+    Duration initialPosition = Duration.zero,
+    XtSeries? series,
+    List<XtEpisode>? episodes,
+    int episodeIndex = 0,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PlayerScreen(
@@ -45,6 +52,9 @@ class _DetailScreenState extends State<DetailScreen> {
           title: title,
           resume: resume,
           initialPosition: initialPosition,
+          series: series,
+          episodes: episodes,
+          episodeIndex: episodeIndex,
         ),
       ),
     );
@@ -65,12 +75,18 @@ class _DetailScreenState extends State<DetailScreen> {
     return 0;
   }
 
-  void _playEpisode(XtEpisode e) => _play(
-        _repo.episodeUrl(e),
-        e.title,
-        resume: ContinueRef.series(widget.series!, e),
-        initialPosition: Duration(seconds: _episodePos(e)),
-      );
+  void _playEpisode(List<XtEpisode> eps, int index) {
+    final e = eps[index];
+    _play(
+      _repo.episodeUrl(e),
+      e.title,
+      resume: ContinueRef.series(widget.series!, e),
+      initialPosition: Duration(seconds: _episodePos(e)),
+      series: widget.series,
+      episodes: eps,
+      episodeIndex: index,
+    );
+  }
 
   Widget _favStar() => _isMovie
       ? FavStar(
@@ -224,7 +240,7 @@ class _DetailScreenState extends State<DetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _actions(
-                onPlay: eps.isEmpty ? null : () => _playEpisode(eps.first),
+                onPlay: eps.isEmpty ? null : () => _playEpisode(eps, 0),
               ),
               _plotAndMeta(info.plot, const []),
               if (eps.isEmpty)
@@ -239,11 +255,12 @@ class _DetailScreenState extends State<DetailScreen> {
                       style: TextStyle(
                           fontSize: 17, fontWeight: FontWeight.bold)),
                 ),
-                ...eps.map((e) => ListTile(
-                      leading: const Icon(Icons.play_circle_outline),
-                      title: Text(e.title),
-                      onTap: () => _playEpisode(e),
-                    )),
+                for (var i = 0; i < eps.length; i++)
+                  ListTile(
+                    leading: const Icon(Icons.play_circle_outline),
+                    title: Text(eps[i].title),
+                    onTap: () => _playEpisode(eps, i),
+                  ),
               ],
             ],
           );
