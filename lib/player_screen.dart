@@ -107,33 +107,52 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.dispose();
   }
 
+  // Controlli senza il pulsante "fullscreen": il player è già a schermo intero.
+  // Restano barra di avanzamento (default), play/pausa centrale e posizione.
+  static const MaterialVideoControlsThemeData _controlsTheme =
+      MaterialVideoControlsThemeData(
+    bottomButtonBar: [
+      MaterialPositionIndicator(),
+      Spacer(),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
-    // Niente AppBar: video edge-to-edge (immersivo). Solo un tasto "indietro".
+    // Niente AppBar: video edge-to-edge (immersivo). Solo un tasto "Indietro".
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Positioned.fill(child: Video(controller: _controller)),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Material(
-                  color: Colors.black45,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    tooltip: 'Indietro',
-                    onPressed: () => Navigator.of(context).maybePop(),
+      body: MaterialVideoControlsTheme(
+        normal: _controlsTheme,
+        fullscreen: _controlsTheme,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Video(
+                controller: _controller,
+                controls: MaterialVideoControls,
+              ),
+            ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Material(
+                    color: Colors.black45,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      tooltip: 'Indietro',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
