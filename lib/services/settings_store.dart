@@ -15,6 +15,7 @@ class SettingsStore extends ChangeNotifier {
   static const _kPass = 'set_pass';
   static const _kM3u = 'set_m3u';
   static const _kUa = 'set_ua';
+  static const _kEula = 'eula_accepted';
 
   SharedPreferences? _prefs;
 
@@ -24,6 +25,7 @@ class SettingsStore extends ChangeNotifier {
   String password = '';
   String m3uUrl = '';
   String userAgent = AppConfig.defaultUserAgent;
+  bool eulaAccepted = false;
 
   bool get isM3u => mode == 'm3u';
 
@@ -40,6 +42,14 @@ class SettingsStore extends ChangeNotifier {
     password = p.getString(_kPass) ?? '';
     m3uUrl = p.getString(_kM3u) ?? '';
     userAgent = p.getString(_kUa) ?? AppConfig.defaultUserAgent;
+    eulaAccepted = p.getBool(_kEula) ?? false;
+    notifyListeners();
+  }
+
+  Future<void> acceptEula() async {
+    eulaAccepted = true;
+    final p = _prefs ??= await SharedPreferences.getInstance();
+    await p.setBool(_kEula, true);
     notifyListeners();
   }
 

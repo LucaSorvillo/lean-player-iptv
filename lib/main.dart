@@ -11,6 +11,7 @@ import 'services/favorites_store.dart';
 import 'services/parental_store.dart';
 import 'services/settings_store.dart';
 import 'theme.dart';
+import 'widgets/eula_gate.dart';
 import 'widgets/pin_gate.dart';
 
 Future<void> main() async {
@@ -35,8 +36,10 @@ class LeanPlayerApp extends StatelessWidget {
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
-        home: SettingsStore.instance.isConfigured
-            ? const PinGate(child: HomeScreen())
-            : const LoginScreen(firstRun: true),
+        home: EulaGate(
+          child: SettingsStore.instance.isConfigured
+              ? const PinGate(child: HomeScreen())
+              : const LoginScreen(firstRun: true),
+        ),
       );
 }
