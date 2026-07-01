@@ -9,10 +9,10 @@ Questa guida serve a **compilare l'app per iOS senza un Mac** (build su GitHub A
 - iPhone + PC Windows sulla stessa rete Wi-Fi.
 
 ## Passo 1 — Metti il codice su GitHub
-1. Su github.com crea un repository **privato** (es. `scptv_app`), senza inizializzarlo con README.
-2. Dal PC, nella cartella del progetto `scptv_app`, collega e pubblica (sostituisci TUO-UTENTE):
+1. Su github.com crea un repository **privato** (es. `leanplayeriptv`), senza inizializzarlo con README.
+2. Dal PC, nella cartella del progetto, collega e pubblica (sostituisci TUO-UTENTE):
    ```
-   git remote add origin https://github.com/TUO-UTENTE/scptv_app.git
+   git remote add origin https://github.com/TUO-UTENTE/leanplayeriptv.git
    git push -u origin main
    ```
    (Per l'autenticazione: usa un **Personal Access Token** GitHub come password, oppure GitHub Desktop.)
@@ -21,7 +21,7 @@ Questa guida serve a **compilare l'app per iOS senza un Mac** (build su GitHub A
 1. Su GitHub, scheda **Actions** → il workflow **"iOS build (unsigned IPA)"** parte da solo al push
    (o avvialo a mano con **Run workflow**).
 2. Attendi ~10–15 minuti. A build finita, apri il run e scarica l'**Artifact**
-   `scptv-ios-unsigned-ipa` (è uno zip che contiene `app-unsigned.ipa`). Estrai l'`.ipa`.
+   `leanplayeriptv-ios-unsigned-ipa` (è uno zip che contiene `app-unsigned.ipa`). Estrai l'`.ipa`.
 
 ## Passo 3 — Installa sull'iPhone (sideload)
 **Opzione A — AltStore (consigliata per iniziare):**
@@ -32,11 +32,11 @@ Questa guida serve a **compilare l'app per iOS senza un Mac** (build su GitHub A
 
 **Opzione B — SideStore:** alternativa che **rinnova l'app da sola** via VPN locale (più comoda a lungo termine).
 
-## Passo 4 — Prova del nove
-Apri l'app **SCPTV POC** sull'iPhone: deve partire **Rai 1**.
-- ✅ Se il video parte → il de-risking è superato: l'User-Agent `SCPTVPlayer` funziona su iOS e
-  possiamo costruire l'app completa.
-- ❌ Se non parte → segnalamelo: aggiusto le opzioni del player (es. formato dell'opzione User-Agent).
+## Passo 4 — Prova
+Apri **LeanPlayerIPTV** sull'iPhone, inserisci le tue credenziali (Xtream) o l'URL M3U e avvia un
+canale/contenuto.
+- ✅ Se il video parte, tutto ok.
+- ❌ Se un server richiede uno User-Agent specifico, impostalo dal campo **User-Agent** nelle impostazioni.
 
 ## Note importanti
 - **Apple ID gratuito:** l'app va **riaperta/rinnovata ogni 7 giorni** (AltStore lo fa quando iPhone e PC

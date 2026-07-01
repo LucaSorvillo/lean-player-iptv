@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 import 'services/catalog_repository.dart';
+import 'services/parental_store.dart';
 import 'widgets/common.dart';
 import 'widgets/content_row.dart';
 import 'widgets/featured_hero.dart';
@@ -60,8 +61,14 @@ class _BrowseScreenState<T> extends State<BrowseScreen<T>> {
 
   Future<_BrowseData<T>> _load() async {
     final results = await Future.wait([widget.categories(), widget.items()]);
-    final cats = results[0] as List<XtCategory>;
-    final items = results[1] as List<T>;
+    final allCats = results[0] as List<XtCategory>;
+    final allItems = results[1] as List<T>;
+    // Filtro parentale: nasconde categorie e contenuti "per adulti".
+    final adultIds = ParentalStore.instance.adultCategoryIds(allCats);
+    final cats = allCats.where((c) => !adultIds.contains(c.id)).toList();
+    final items = allItems
+        .where((it) => !adultIds.contains(widget.categoryIdOf(it)))
+        .toList();
     final byCat = <String, List<T>>{};
     for (final it in items) {
       (byCat[widget.categoryIdOf(it)] ??= <T>[]).add(it);

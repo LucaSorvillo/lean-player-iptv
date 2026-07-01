@@ -11,6 +11,7 @@ import 'services/catalog_repository.dart';
 import 'services/connectivity_service.dart';
 import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
+import 'services/parental_store.dart';
 import 'widgets/common.dart';
 import 'widgets/continue_row.dart';
 
@@ -212,14 +213,26 @@ class _CatalogTab<T> extends StatefulWidget {
 
 class _CatalogTabState<T> extends State<_CatalogTab<T>> {
   late Future<List<T>> _items = widget.loadItems();
-  late Future<List<XtCategory>> _cats = widget.loadCategories();
+  late Future<List<XtCategory>> _cats = _loadCats();
   String? _selectedCat;
+  Set<String> _adultIds = {};
+
+  Future<List<XtCategory>> _loadCats() {
+    final f = widget.loadCategories();
+    f.then((cats) {
+      if (mounted) {
+        setState(
+            () => _adultIds = ParentalStore.instance.adultCategoryIds(cats));
+      }
+    }).catchError((_) {});
+    return f;
+  }
 
   Future<void> _refresh() async {
     CatalogRepository.instance.refresh();
     setState(() {
       _items = widget.loadItems();
-      _cats = widget.loadCategories();
+      _cats = _loadCats();
       _selectedCat = null;
     });
     await _items.catchError((_) => <T>[]);
@@ -228,7 +241,7 @@ class _CatalogTabState<T> extends State<_CatalogTab<T>> {
   void _retry() {
     setState(() {
       _items = widget.loadItems();
-      _cats = widget.loadCategories();
+      _cats = _loadCats();
     });
   }
 
@@ -239,7 +252,9 @@ class _CatalogTabState<T> extends State<_CatalogTab<T>> {
         FutureBuilder<List<XtCategory>>(
           future: _cats,
           builder: (context, snap) {
-            final cats = snap.data ?? const <XtCategory>[];
+            final cats = (snap.data ?? const <XtCategory>[])
+                .where((c) => !_adultIds.contains(c.id))
+                .toList();
             if (cats.isEmpty) return const SizedBox.shrink();
             return CategoryDropdown(
               categories: cats,
@@ -260,9 +275,10 @@ class _CatalogTabState<T> extends State<_CatalogTab<T>> {
                 if (snap.hasError) {
                   return ErrorRetry(message: '${snap.error}', onRetry: _retry);
                 }
-                final all = snap.data ?? const [];
+                final all = (snap.data ?? <T>[])
+                    .where((e) => !_adultIds.contains(widget.categoryIdOf(e)));
                 final list = _selectedCat == null
-                    ? all
+                    ? all.toList()
                     : all
                         .where((e) => widget.categoryIdOf(e) == _selectedCat)
                         .toList();

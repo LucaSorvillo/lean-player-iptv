@@ -39,6 +39,6 @@ jobs:
       - name: Pubblica l'IPA come artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scptv-ios-unsigned-ipa
+          name: leanplayeriptv-ios-unsigned-ipa
           path: build/ios/iphoneos/app-unsigned.ipa
           if-no-files-found: error

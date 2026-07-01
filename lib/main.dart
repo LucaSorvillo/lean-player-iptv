@@ -8,8 +8,10 @@ import 'login_screen.dart';
 import 'services/connectivity_service.dart';
 import 'services/continue_watching_store.dart';
 import 'services/favorites_store.dart';
+import 'services/parental_store.dart';
 import 'services/settings_store.dart';
 import 'theme.dart';
+import 'widgets/pin_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,20 +22,21 @@ Future<void> main() async {
   await SettingsStore.instance.load();
   await FavoritesStore.instance.load();
   await ContinueWatchingStore.instance.load();
+  await ParentalStore.instance.load();
   await ConnectivityService.instance.init();
-  runApp(const ScptvApp());
+  runApp(const LeanPlayerApp());
 }
 
-class ScptvApp extends StatelessWidget {
-  const ScptvApp({super.key});
+class LeanPlayerApp extends StatelessWidget {
+  const LeanPlayerApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: ScptvConfig.appName,
+        title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         home: SettingsStore.instance.isConfigured
-            ? const HomeScreen()
+            ? const PinGate(child: HomeScreen())
             : const LoginScreen(firstRun: true),
       );
 }

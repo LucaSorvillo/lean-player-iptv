@@ -5,7 +5,9 @@ import 'home_screen.dart';
 import 'services/catalog_repository.dart';
 import 'services/catalog_source.dart';
 import 'services/m3u_source.dart';
+import 'services/parental_store.dart';
 import 'services/settings_store.dart';
+import 'widgets/pin_gate.dart';
 import 'xtream_api.dart';
 
 /// Schermata di accesso/impostazioni: scelta modalità (Xtream o M3U),
@@ -39,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _pass = TextEditingController(text: s.password);
     _m3u = TextEditingController(text: s.m3uUrl);
     _ua = TextEditingController(
-        text: s.userAgent.isEmpty ? ScptvConfig.defaultUserAgent : s.userAgent);
+        text: s.userAgent.isEmpty ? AppConfig.defaultUserAgent : s.userAgent);
   }
 
   @override
@@ -54,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   CatalogSource _buildTempSource() {
     final ua =
-        _ua.text.trim().isEmpty ? ScptvConfig.defaultUserAgent : _ua.text.trim();
+        _ua.text.trim().isEmpty ? AppConfig.defaultUserAgent : _ua.text.trim();
     if (_mode == 'm3u') {
       return M3uSource(m3uUrl: _m3u.text.trim(), userAgent: ua);
     }
@@ -146,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            widget.firstRun ? 'Configura ${ScptvConfig.appName}' : 'Impostazioni'),
+            widget.firstRun ? 'Configura ${AppConfig.appName}' : 'Impostazioni'),
         automaticallyImplyLeading: !widget.firstRun,
       ),
       body: ListView(
@@ -222,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Wrap(
             spacing: 8,
             children: [
-              for (final p in ScptvConfig.userAgentPresets)
+              for (final p in AppConfig.userAgentPresets)
                 ActionChip(
                   label: Text(_chipLabel(p)),
                   onPressed: () => setState(() => _ua.text = p),
@@ -246,13 +248,86 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: const Icon(Icons.check),
             label: Text(widget.firstRun ? 'Salva ed entra' : 'Salva'),
           ),
+          if (!widget.firstRun) _parentalSection(),
+          _disclaimer(),
         ],
       ),
     );
   }
 
+  // --- Controllo parentale ---
+  Widget _parentalSection() {
+    final ps = ParentalStore.instance;
+    return ListenableBuilder(
+      listenable: ps,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 40),
+          const Text('Controllo parentale',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Nascondi contenuti per adulti'),
+            value: ps.hideAdult,
+            onChanged: (v) => ps.setHideAdult(v),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(ps.hasPin ? Icons.lock : Icons.lock_open),
+            title: Text(ps.hasPin ? 'PIN attivo' : 'Nessun PIN'),
+            subtitle: Text(ps.hasPin
+                ? 'L\'app chiede il PIN all\'avvio'
+                : 'Blocca l\'app all\'avvio con un PIN'),
+            trailing: ps.hasPin
+                ? TextButton(onPressed: _removePin, child: const Text('Rimuovi'))
+                : TextButton(onPressed: _setPin, child: const Text('Imposta')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setPin() async {
+    final pin = await promptPin(context, title: 'Imposta un PIN');
+    if (pin == null || !mounted) return;
+    if (pin.length < 4) {
+      _snack('Il PIN deve avere almeno 4 cifre.', error: true);
+      return;
+    }
+    final confirm = await promptPin(context, title: 'Conferma il PIN');
+    if (!mounted) return;
+    if (confirm != pin) {
+      _snack('I PIN non coincidono.', error: true);
+      return;
+    }
+    await ParentalStore.instance.setPin(pin);
+    if (mounted) _snack('PIN impostato.');
+  }
+
+  Future<void> _removePin() async {
+    final pin = await promptPin(context, title: 'Inserisci il PIN attuale');
+    if (pin == null || !mounted) return;
+    if (!ParentalStore.instance.verify(pin)) {
+      _snack('PIN errato.', error: true);
+      return;
+    }
+    await ParentalStore.instance.clearPin();
+    if (mounted) _snack('PIN rimosso.');
+  }
+
+  Widget _disclaimer() => const Padding(
+        padding: EdgeInsets.only(top: 24),
+        child: Text(
+          'LeanPlayerIPTV è un lettore multimediale: non fornisce né include '
+          'alcun contenuto. Inserisci le credenziali o la playlist di un '
+          'servizio di cui detieni i diritti o un abbonamento legittimo.',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+      );
+
   String _chipLabel(String ua) {
-    if (ua.startsWith('SCPTV')) return 'SCPTVPlayer';
+    if (ua.startsWith('LeanPlayer')) return 'LeanPlayerIPTV';
     if (ua.startsWith('VLC')) return 'VLC';
     if (ua.startsWith('Lavf')) return 'Lavf';
     if (ua.startsWith('okhttp')) return 'okhttp';

@@ -23,7 +23,7 @@ class SettingsStore extends ChangeNotifier {
   String username = '';
   String password = '';
   String m3uUrl = '';
-  String userAgent = ScptvConfig.defaultUserAgent;
+  String userAgent = AppConfig.defaultUserAgent;
 
   bool get isM3u => mode == 'm3u';
 
@@ -39,7 +39,7 @@ class SettingsStore extends ChangeNotifier {
     username = p.getString(_kUser) ?? '';
     password = p.getString(_kPass) ?? '';
     m3uUrl = p.getString(_kM3u) ?? '';
-    userAgent = p.getString(_kUa) ?? ScptvConfig.defaultUserAgent;
+    userAgent = p.getString(_kUa) ?? AppConfig.defaultUserAgent;
     notifyListeners();
   }
 
@@ -57,7 +57,7 @@ class SettingsStore extends ChangeNotifier {
     this.password = password.trim();
     this.m3uUrl = m3uUrl.trim();
     this.userAgent =
-        userAgent.trim().isEmpty ? ScptvConfig.defaultUserAgent : userAgent.trim();
+        userAgent.trim().isEmpty ? AppConfig.defaultUserAgent : userAgent.trim();
     final p = _prefs ??= await SharedPreferences.getInstance();
     await p.setString(_kMode, this.mode);
     await p.setString(_kServer, this.serverUrl);

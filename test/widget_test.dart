@@ -1,7 +1,7 @@
 // Test unitari sui pezzi "puri" dell'app (nessun binding nativo: girano su VM).
 import 'package:flutter_test/flutter_test.dart';
-import 'package:scptv_app/models.dart';
-import 'package:scptv_app/services/settings_store.dart';
+import 'package:lean_player_iptv/models.dart';
+import 'package:lean_player_iptv/services/settings_store.dart';
 
 void main() {
   group('SettingsStore.normalizeBaseUrl', () {

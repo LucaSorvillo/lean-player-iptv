@@ -576,7 +576,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  // Barra di livello verticale (slider ruotato) con icona sotto, stile SCPTV.
+  // Barra di livello verticale (slider ruotato) con icona sotto.
   Widget _levelBar({
     required IconData icon,
     required double value,

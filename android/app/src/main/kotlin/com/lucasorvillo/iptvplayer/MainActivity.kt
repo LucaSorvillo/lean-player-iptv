@@ -1,4 +1,4 @@
-package com.scptvplayer.scptv_app
+package com.lucasorvillo.iptvplayer
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,4 +1,4 @@
-// Modelli dei dati Xtream Codes di SCPTV.
+// Modelli dei dati Xtream Codes.
 //
 // I campi dell'API possono arrivare come String o numero: li normalizziamo
 // sempre a String con interpolazione.
